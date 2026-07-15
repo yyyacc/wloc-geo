@@ -41,16 +41,19 @@ https://你的worker域名/
 
 ## 部署公共选点页面
 
-Worker 是纯静态页面服务，无需任何绑定：
+Worker 无需 KV、数据库或环境变量。代码位于仓库的 `worker/` 子目录。
+
+本地部署：
 
 ```bash
 cd worker
-npx wrangler deploy
+npm ci
+npm run deploy
 ```
 
-或在 CF Dashboard → Workers → 新建 Worker → 粘贴 `wloc-worker.js` → 部署。
+使用 Cloudflare Git 集成时，根目录必须设置为 `/worker`，构建命令留空，部署命令使用 `npx wrangler deploy`。Dashboard 中的 Worker 名称还应与 `worker/wrangler.jsonc` 的 `name` 一致。
 
-不需要 KV、不需要数据库、不需要环境变量。
+也可以在 CF Dashboard → Workers → 新建 Worker → 粘贴 `wloc-worker.js` → 部署；但该单文件是简化版本，Git/Wrangler 部署会包含完整 API。
 
 ---
 
