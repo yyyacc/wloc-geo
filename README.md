@@ -28,7 +28,6 @@ MITM 主机名：`gs-loc.apple.com, gs-loc-cn.apple.com`
 | 根目录 | `/worker` |
 | 构建命令 | 留空 |
 | 部署命令 | `npx wrangler deploy` |
-| Node.js | 22 或更高版本 |
 
 `worker/wrangler.jsonc` 中的 Worker 名称是 `wloc-geo`。如果 Cloudflare Dashboard 中创建的 Worker 使用其他名称，请将配置文件中的 `name` 改成相同名称。
 
@@ -36,9 +35,9 @@ MITM 主机名：`gs-loc.apple.com, gs-loc-cn.apple.com`
 
 ```bash
 cd worker
-npm ci
-npm run check   # 只打包检查，不上传
-npm run deploy  # 正式部署
+npm install
+npx wrangler deploy --dry-run  # 只打包检查，不上传
+npm run deploy                 # 正式部署
 ```
 
 ## 海拔测试

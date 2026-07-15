@@ -47,7 +47,7 @@ Worker 无需 KV、数据库或环境变量。代码位于仓库的 `worker/` �
 
 ```bash
 cd worker
-npm ci
+npm install
 npm run deploy
 ```
 

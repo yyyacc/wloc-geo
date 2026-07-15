@@ -1,19 +1,12 @@
 {
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy --minify",
-    "check": "wrangler deploy --dry-run --outdir .wrangler/dry-run",
-    "pages:dev": "wrangler pages dev --port 8787 -c wrangler.pages.jsonc",
-    "pages:deploy": "wrangler pages deploy -c wrangler.pages.jsonc"
+    "dev": "npx wrangler dev",
+    "deploy": "npx wrangler deploy --minify",
+    "pages:dev": "npx wrangler pages dev --port 8787 -c wrangler.pages.jsonc",
+    "pages:deploy": "npx wrangler pages deploy -c wrangler.pages.jsonc"
   },
   "dependencies": {
     "hono": "^4.10.6"
-  },
-  "devDependencies": {
-    "wrangler": "4.111.0"
-  },
-  "engines": {
-    "node": ">=22.0.0"
   }
 }
