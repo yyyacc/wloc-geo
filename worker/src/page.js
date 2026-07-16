@@ -37,6 +37,13 @@ body { font-family:-apple-system,system-ui,"SF Pro","Helvetica Neue",sans-serif;
 .input-row { display:flex; gap:8px; margin-top:10px; }
 .input-row input { flex:1; padding:10px 12px; border:1px solid #d1d1d6; border-radius:8px; font-size:14px; outline:none; min-width:0; }
 .input-row input:focus { border-color:var(--blue); }
+.alt-options-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.45fr); gap:8px; margin-top:8px; align-items:end; }
+.alt-option { display:flex; flex-direction:column; gap:5px; min-width:0; font-size:11px; color:var(--gray); position:relative; }
+.alt-option input { width:100%; min-width:0; padding:10px 8px; border:1px solid #d1d1d6; border-radius:8px; font-size:13px; outline:none; }
+.alt-option input:focus { border-color:var(--blue); }
+.scale-help { cursor:help; }
+.scale-help::after { content:attr(data-tooltip); position:absolute; right:0; bottom:calc(100% + 8px); width:260px; max-width:80vw; padding:8px 10px; border-radius:8px; background:rgba(0,0,0,.86); color:#fff; font-size:11px; line-height:1.45; white-space:normal; opacity:0; visibility:hidden; transform:translateY(4px); transition:opacity .15s,transform .15s,visibility .15s; pointer-events:none; z-index:1001; box-shadow:0 4px 12px rgba(0,0,0,.2); }
+.scale-help:hover::after, .scale-help:focus-within::after { opacity:1; visibility:visible; transform:translateY(0); }
 .status { font-size:12px; color:var(--gray); margin-top:8px; text-align:center; }
 .error-banner { background:var(--red); color:#fff; padding:14px 16px; border-radius:12px; margin-bottom:12px; font-size:14px; line-height:1.5; display:none; }
 .error-banner b { display:block; margin-bottom:4px; }
@@ -102,15 +109,20 @@ body { font-family:-apple-system,system-ui,"SF Pro","Helvetica Neue",sans-serif;
         <input type="checkbox" id="altAuto" onchange="onAltAuto()" /> 自动查询地面海拔
       </label>
     </div>
-    <div class="input-row" style="margin-top:8px">
-      <input id="floorInput" type="number" step="1" min="1" placeholder="楼层(可选,自动海拔时叠加离地高度)" onchange="onAltAuto()" />
-      <input id="floorHeightInput" type="number" step="0.1" min="0" style="max-width:120px" placeholder="层高(米,默认3)" onchange="onAltAuto()" />
+    <div class="alt-options-row">
+      <label class="alt-option" for="floorInput">
+        <span>楼层</span>
+        <input id="floorInput" type="number" step="1" min="1" placeholder="可选" onchange="onAltAuto()" />
+      </label>
+      <label class="alt-option" for="floorHeightInput">
+        <span>层高(米)</span>
+        <input id="floorHeightInput" type="number" step="0.1" min="0" placeholder="默认3" onchange="onAltAuto()" />
+      </label>
+      <label class="alt-option scale-help" for="altitudeScaleInput" data-tooltip="写入规则：field5 = 海拔(米) × 海拔缩放系数。默认值来自 Worker 变量 ALTITUDE_SCALE，未配置时为 100。">
+        <span>海拔缩放系数 ⓘ</span>
+        <input id="altitudeScaleInput" type="number" step="any" min="0.000001" value="${defaultAltitudeScale}" placeholder="默认100" />
+      </label>
     </div>
-    <div class="input-row" style="margin-top:8px;align-items:center">
-      <label for="altitudeScaleInput" style="font-size:12px;color:var(--gray);white-space:nowrap">海拔缩放系数</label>
-      <input id="altitudeScaleInput" type="number" step="any" min="0.000001" value="${defaultAltitudeScale}" placeholder="默认100" />
-    </div>
-    <div style="font-size:11px;color:var(--gray);margin-top:6px">写入规则：field5 = 海拔(米) × 缩放系数。默认值来自 Worker 变量 ALTITUDE_SCALE，未配置时为 100。</div>
     <div class="row">
       <button class="btn btn-primary" id="saveBtn" onclick="save()">储存到设备</button>
       <button class="btn btn-secondary" onclick="addFav()">收藏位置</button>
