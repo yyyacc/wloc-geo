@@ -181,6 +181,7 @@ body { font-family:-apple-system,system-ui,"SF Pro","Helvetica Neue",sans-serif;
 <script>
 const SAVE_API = 'https://gs-loc.apple.com/wloc-settings/save';
 const GEO_API = location.origin + '/api/geo';
+const PARSE_API = location.origin + '/api/parse';
 const FAV_KEY = 'wloc_favorites';
 const DEFAULT_ALTITUDE_SCALE = ${defaultAltitudeScale};
 const INITIAL_ALTITUDE_SCALE = ${JSON.stringify(initialAltitudeScale)};
@@ -501,11 +502,31 @@ function parseMapUrl(text) {
   return null;
 }
 
-function parseUrl() {
+async function parseUrl() {
   const input = document.getElementById('urlInput').value.trim();
   if (!input) return toast('请粘贴地图链接或坐标');
+  toast('解析中...');
+
+  // 优先交给 Worker 解析：支持 Apple/高德链接、%2C 编码逗号、短链跳转，
+  // 并会把中国大陆 Apple/高德的 GCJ-02 坐标转换为 WGS84。
+  try {
+    const r = await fetch(PARSE_API + '?format=json&u=' + encodeURIComponent(input), { cache:'no-store' });
+    const d = await r.json();
+    const parsedLat = parseFloat(d.lat);
+    const parsedLon = parseFloat(d.lon);
+    if (r.ok && Number.isFinite(parsedLat) && Number.isFinite(parsedLon) && Math.abs(parsedLat) <= 90 && Math.abs(parsedLon) <= 180) {
+      moveTo(parsedLat, parsedLon, 15);
+      toast((d.name ? d.name + ' · ' : '已解析: ') + parsedLon.toFixed(4) + ', ' + parsedLat.toFixed(4));
+      return;
+    }
+  } catch(e) {}
+
+  // Worker 无法识别时，回退到浏览器内的 Google/普通坐标格式解析。
   const result = parseMapUrl(input);
-  if (!result) { toast('无法解析坐标，请检查链接格式', 3000); return; }
+  if (!result || !Number.isFinite(result.lat) || !Number.isFinite(result.lon) || Math.abs(result.lat) > 90) {
+    toast('无法解析坐标，请检查链接格式', 3000);
+    return;
+  }
   moveTo(result.lat, result.lon, 15);
   toast('已解析: ' + result.lon.toFixed(4) + ', ' + result.lat.toFixed(4));
 }
