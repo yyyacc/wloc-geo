@@ -1,20 +1,20 @@
 #!name=Apple WLOC 定位修改
-#!desc=修改 Apple 网络定位返回坐标(经纬度+精度+海拔) | 选点页面: https://your-worker.example/
-#!icon=https://raw.githubusercontent.com/Yu9191/wloc/refs/heads/geo/wloc.jpg
+#!desc=修改 Apple 网络定位返回坐标(经纬度+精度+海拔) | 选点页面: 请使用自建 wloc-geo Worker
+#!icon=https://raw.githubusercontent.com/yyyacc/wloc-geo/refs/heads/main/wloc.jpg
 #!author=Yu9191 Rewrite
-#!homepage=https://github.com/Yu9191/wloc
-#!openUrl=https://your-worker.example/
+#!homepage=https://github.com/yyyacc/wloc-geo
 
 [Argument]
 longitude = input, "113.94114", tag=经度(在线选点优先)
 latitude = input, "22.544577", tag=纬度(在线选点优先)
 accuracy = input, "25", tag=精度(米)
 altitude = input, "15", tag=海拔(米,留空=不修改,默认15为该坐标地面海拔)
+altitudeScale = input, "100", tag=海拔缩放系数(field5倍率)
 logLevel = select, "info", "off", "error", "warn", "debug", "all", tag=日志级别
 
 [Script]
-http-response ^https?:\/\/gs-loc(-cn)?\.apple\.com\/clls\/wloc script-path=https://raw.githubusercontent.com/Yu9191/wloc/refs/heads/geo/dist/wloc.js, requires-body=true, binary-body-mode=true, timeout=30, tag=Apple WLOC, argument=[{longitude},{latitude},{accuracy},{altitude},{logLevel}]
-http-request ^https?:\/\/gs-loc(-cn)?\.apple\.com\/wloc-settings\/save script-path=https://raw.githubusercontent.com/Yu9191/wloc/refs/heads/geo/dist/wloc-settings.js, timeout=10, tag=WLOC Settings
+http-response ^https?:\/\/gs-loc(-cn)?\.apple\.com\/clls\/wloc script-path=https://raw.githubusercontent.com/yyyacc/wloc-geo/refs/heads/main/dist/wloc.js, requires-body=true, binary-body-mode=true, timeout=30, tag=Apple WLOC, argument=[{longitude},{latitude},{accuracy},{altitude},{altitudeScale},{logLevel}]
+http-request ^https?:\/\/gs-loc(-cn)?\.apple\.com\/wloc-settings\/save script-path=https://raw.githubusercontent.com/yyyacc/wloc-geo/refs/heads/main/dist/wloc-settings.js, timeout=10, tag=WLOC Settings
 
 [MITM]
 hostname = gs-loc.apple.com, gs-loc-cn.apple.com
