@@ -1,10 +1,12 @@
-function normalizeAltitudeScale(value, fallback = 100) {
+function normalizeAltitudeScale(value) {
   const n = Number(value);
-  return Number.isFinite(n) && n > 0 ? n : fallback;
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 export function getPageHtml(options = {}) {
-  const defaultAltitudeScale = normalizeAltitudeScale(options.altitudeScale);
+  const configuredAltitudeScale = normalizeAltitudeScale(options.altitudeScale);
+  const initialAltitudeScale = configuredAltitudeScale ?? "";
+  const defaultAltitudeScale = 100;
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -118,9 +120,9 @@ body { font-family:-apple-system,system-ui,"SF Pro","Helvetica Neue",sans-serif;
         <span>层高(米)</span>
         <input id="floorHeightInput" type="number" step="0.1" min="0" placeholder="默认3" onchange="onAltAuto()" />
       </label>
-      <label class="alt-option scale-help" for="altitudeScaleInput" data-tooltip="写入规则：field5 = 海拔(米) × 海拔缩放系数。默认值来自 Worker 变量 ALTITUDE_SCALE，未配置时为 100。">
+      <label class="alt-option scale-help" for="altitudeScaleInput" data-tooltip="写入规则：field5 = 海拔(米) × 海拔缩放系数。留空时使用 100。">
         <span>海拔缩放系数 ⓘ</span>
-        <input id="altitudeScaleInput" type="number" step="any" min="0.000001" value="${defaultAltitudeScale}" placeholder="默认100" />
+        <input id="altitudeScaleInput" type="number" step="any" min="0.000001" value="${initialAltitudeScale}" placeholder="默认100" />
       </label>
     </div>
     <div class="row">
@@ -181,6 +183,7 @@ const SAVE_API = 'https://gs-loc.apple.com/wloc-settings/save';
 const GEO_API = location.origin + '/api/geo';
 const FAV_KEY = 'wloc_favorites';
 const DEFAULT_ALTITUDE_SCALE = ${defaultAltitudeScale};
+const INITIAL_ALTITUDE_SCALE = ${JSON.stringify(initialAltitudeScale)};
 let lat = 22.544577, lon = 113.94114;
 let selected = false;
 let activeLon = null, activeLat = null;
@@ -329,8 +332,9 @@ function queryActive() {
         activeLat = parseFloat(d.latitude);
         const alt = (d.altitude != null && d.altitude !== '') ? d.altitude : cachedAlt(activeLon, activeLat);
         const altTxt = (alt != null && alt !== '') ? '  海拔 ' + alt + 'm' : '';
-        const altitudeScale = validAltitudeScale(d.altitudeScale) ? parseFloat(d.altitudeScale) : DEFAULT_ALTITUDE_SCALE;
-        document.getElementById('altitudeScaleInput').value = altitudeScale;
+        const hasSavedAltitudeScale = validAltitudeScale(d.altitudeScale);
+        const altitudeScale = hasSavedAltitudeScale ? parseFloat(d.altitudeScale) : DEFAULT_ALTITUDE_SCALE;
+        document.getElementById('altitudeScaleInput').value = hasSavedAltitudeScale ? altitudeScale : INITIAL_ALTITUDE_SCALE;
         el.textContent = '经度 ' + activeLon.toFixed(6) + '  纬度 ' + activeLat.toFixed(6) + (d.accuracy ? '  精度 ' + d.accuracy + 'm' : '') + altTxt + '  缩放 ×' + altitudeScale;
         renderFavs();
       } else {
@@ -365,7 +369,7 @@ function clearActive() {
         activeLon = null; activeLat = null;
         try { localStorage.removeItem('wloc_saved_alt'); } catch(e) {}
         document.getElementById('activeValue').textContent = '已清除';
-        document.getElementById('altitudeScaleInput').value = DEFAULT_ALTITUDE_SCALE;
+        document.getElementById('altitudeScaleInput').value = INITIAL_ALTITUDE_SCALE;
         renderFavs();
         toast('已清除设备坐标');
       } else { toast('清除失败: ' + (d.error || ''), 3000); }
@@ -379,10 +383,10 @@ function validAltitudeScale(value) {
   return Number.isFinite(n) && n > 0;
 }
 function resolveAltitudeScale() {
-  const inp = document.getElementById('altitudeScaleInput');
-  const value = validAltitudeScale(inp.value) ? parseFloat(inp.value) : DEFAULT_ALTITUDE_SCALE;
-  inp.value = value;
-  return value;
+  const raw = (document.getElementById('altitudeScaleInput').value || '').trim();
+  if (raw === '' || !validAltitudeScale(raw)) return { value: DEFAULT_ALTITUDE_SCALE, query: '' };
+  const value = parseFloat(raw);
+  return { value, query: '&altitudeScale=' + encodeURIComponent(value) };
 }
 async function onAltAuto() {
   const auto = document.getElementById('altAuto').checked;
@@ -443,8 +447,7 @@ async function save() {
     const alt = await resolveAlt();
     const altitudeScale = resolveAltitudeScale();
     const altQs = (alt != null && !Number.isNaN(alt)) ? '&alt=' + alt : '';
-    const scaleQs = '&altitudeScale=' + encodeURIComponent(altitudeScale);
-    const r = await fetch(SAVE_API + '?lon=' + lon + '&lat=' + lat + '&acc=25' + altQs + scaleQs, {
+    const r = await fetch(SAVE_API + '?lon=' + lon + '&lat=' + lat + '&acc=25' + altQs + altitudeScale.query, {
       method: 'GET', mode: 'cors', cache: 'no-store'
     });
     const d = await r.json();
@@ -454,7 +457,7 @@ async function save() {
       const altTxt = (alt != null && !Number.isNaN(alt)) ? '  海拔 ' + alt + 'm' : '';
       btn.textContent = '\\u2713 已储存'; btn.className = 'btn btn-primary success';
       document.getElementById('status').textContent = '\\u2713 已写入: ' + lon.toFixed(6) + ', ' + lat.toFixed(6) + altTxt + ' \\u00b7 ' + new Date().toLocaleTimeString('zh-CN');
-      document.getElementById('activeValue').textContent = '经度 ' + lon.toFixed(6) + '  纬度 ' + lat.toFixed(6) + '  精度 25m' + altTxt + '  缩放 ×' + altitudeScale;
+      document.getElementById('activeValue').textContent = '经度 ' + lon.toFixed(6) + '  纬度 ' + lat.toFixed(6) + '  精度 25m' + altTxt + '  缩放 ×' + altitudeScale.value;
       renderFavs();
       toast('\\u2713 坐标已写入设备，下次定位生效');
       setTimeout(() => { btn.textContent='储存到设备'; btn.className='btn btn-primary'; btn.disabled=false; }, 2500);
