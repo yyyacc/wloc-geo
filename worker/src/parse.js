@@ -51,6 +51,7 @@ export async function parseCoords(raw) {
 
   if (urlMatch) {
     let cur = target;
+    let lastError = "";
     for (let i = 0; i < 5; i++) {
       let resp;
       try {
@@ -64,13 +65,19 @@ export async function parseCoords(raw) {
           },
         });
       } catch (e) {
+        lastError = e && e.message ? e.message : String(e);
         break;
       }
       const loc = resp.headers.get("location");
       if (loc) {
         hit = extractFromString(loc);
         if (hit) return hit;
-        cur = new URL(loc, cur).toString();
+        try {
+          cur = new URL(loc, cur).toString();
+        } catch (e) {
+          lastError = "无效重定向地址";
+          break;
+        }
         hit = extractFromString(cur);
         if (hit) return hit;
         continue;
@@ -81,9 +88,13 @@ export async function parseCoords(raw) {
         const body = await resp.text();
         hit = extractFromString(body);
         if (hit) return hit;
-      } catch (e) {}
+      } catch (e) {
+        lastError = e && e.message ? e.message : String(e);
+      }
+      if (!resp.ok) lastError = `上游返回 HTTP ${resp.status}`;
       break;
     }
+    throw new Error(lastError ? `短链接展开失败: ${lastError}` : "未能从链接中解析出经纬度");
   }
   throw new Error("未能从链接中解析出经纬度");
 }

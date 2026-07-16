@@ -509,6 +509,7 @@ async function parseUrl() {
 
   // 优先交给 Worker 解析：支持 Apple/高德链接、%2C 编码逗号、短链跳转，
   // 并会把中国大陆 Apple/高德的 GCJ-02 坐标转换为 WGS84。
+  let apiError = '';
   try {
     const r = await fetch(PARSE_API + '?format=json&u=' + encodeURIComponent(input), { cache:'no-store' });
     const d = await r.json();
@@ -519,12 +520,15 @@ async function parseUrl() {
       toast((d.name ? d.name + ' · ' : '已解析: ') + parsedLon.toFixed(4) + ', ' + parsedLat.toFixed(4));
       return;
     }
-  } catch(e) {}
+    apiError = d && d.error ? String(d.error) : ('HTTP ' + r.status);
+  } catch(e) {
+    apiError = e && e.message ? e.message : 'Worker 请求失败';
+  }
 
   // Worker 无法识别时，回退到浏览器内的 Google/普通坐标格式解析。
   const result = parseMapUrl(input);
   if (!result || !Number.isFinite(result.lat) || !Number.isFinite(result.lon) || Math.abs(result.lat) > 90) {
-    toast('无法解析坐标，请检查链接格式', 3000);
+    toast('解析失败: ' + (apiError || '请检查链接格式'), 4500);
     return;
   }
   moveTo(result.lat, result.lon, 15);
