@@ -1,4 +1,8 @@
 export function getPageHtml(options = {}) {
+  const amapJsKey = String(options.amapJsKey || "");
+  const amapScript = amapJsKey
+    ? `<script>window._AMapSecurityConfig={serviceHost:location.origin+'/_AMapService'};<\/script>\n<script src="https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(amapJsKey)}"><\/script>`
+    : "";
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -9,11 +13,14 @@ export function getPageHtml(options = {}) {
 <meta name="apple-mobile-web-app-title" content="WLOC">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
+${amapScript}
 <style>
 :root { --blue:#007aff; --green:#34c759; --red:#ff3b30; --gray:#8e8e93; --bg:#f2f2f7; --orange:#ff9500; }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:-apple-system,system-ui,"SF Pro","Helvetica Neue",sans-serif; background:var(--bg); }
-#map { height:50vh; width:100%; min-height:250px; }
+.map-shell { position:relative; height:50vh; width:100%; min-height:250px; }
+.map-canvas { position:absolute; inset:0; width:100%; height:100%; }
+.map-canvas.hidden { visibility:hidden; pointer-events:none; }
 .panel { padding:16px; max-width:600px; margin:0 auto; }
 .card { background:#fff; border-radius:12px; padding:16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
 .card h3 { font-size:15px; font-weight:600; margin-bottom:10px; }
@@ -74,14 +81,16 @@ body { font-family:-apple-system,system-ui,"SF Pro","Helvetica Neue",sans-serif;
 .layer-btn { border:none; background:transparent; padding:6px 10px; border-radius:6px; font-size:12px; font-weight:500; color:#333; cursor:pointer; transition:all .15s; white-space:nowrap; }
 .layer-btn.active { background:var(--blue); color:#fff; }
 .layer-btn:active { transform:scale(.95); }
-@media(max-width:480px) { #map { height:44vh; } .panel { padding:12px; } .layer-btn { padding:5px 7px; font-size:11px; } }
+@media(max-width:480px) { .map-shell { height:44vh; } .panel { padding:12px; } .layer-btn { padding:5px 7px; font-size:11px; } }
 </style>
 </head>
 <body>
-<div style="position:relative">
-<div id="map"></div>
+<div class="map-shell">
+<div id="map" class="map-canvas"></div>
+<div id="amap" class="map-canvas hidden"></div>
 <div class="layer-switch">
   <button class="layer-btn active" data-layer="satellite" onclick="switchLayer('satellite')">卫星</button>
+  <button class="layer-btn" data-layer="amap" onclick="switchLayer('amap')">高德</button>
   <button class="layer-btn" data-layer="voyager" onclick="switchLayer('voyager')">彩色</button>
 </div>
 </div>
@@ -190,14 +199,104 @@ const pinIcon = L.divIcon({
   iconAnchor: [15, 42],
 });
 let currentLayer = tiles.satellite;
+let currentLayerName = 'satellite';
 currentLayer.addTo(map);
+let marker = L.marker([lat, lon], {draggable:true, icon:pinIcon}).addTo(map);
+let amapMap = null;
+let amapMarker = null;
+
+const GCJ_A = 6378245.0;
+const GCJ_EE = 0.00669342162296594323;
+function gcjOutOfChina(lng, la) { return lng < 72.004 || lng > 137.8347 || la < 0.8293 || la > 55.8271; }
+function gcjDeltaLat(x, y) {
+  let r = -100 + 2*x + 3*y + .2*y*y + .1*x*y + .2*Math.sqrt(Math.abs(x));
+  r += ((20*Math.sin(6*x*Math.PI) + 20*Math.sin(2*x*Math.PI))*2)/3;
+  r += ((20*Math.sin(y*Math.PI) + 40*Math.sin(y/3*Math.PI))*2)/3;
+  r += ((160*Math.sin(y/12*Math.PI) + 320*Math.sin(y*Math.PI/30))*2)/3;
+  return r;
+}
+function gcjDeltaLon(x, y) {
+  let r = 300 + x + 2*y + .1*x*x + .1*x*y + .1*Math.sqrt(Math.abs(x));
+  r += ((20*Math.sin(6*x*Math.PI) + 20*Math.sin(2*x*Math.PI))*2)/3;
+  r += ((20*Math.sin(x*Math.PI) + 40*Math.sin(x/3*Math.PI))*2)/3;
+  r += ((150*Math.sin(x/12*Math.PI) + 300*Math.sin(x/30*Math.PI))*2)/3;
+  return r;
+}
+function wgs84ToGcj02(la, lo) {
+  if (gcjOutOfChina(lo, la)) return {lat:la, lon:lo};
+  let dLat = gcjDeltaLat(lo - 105, la - 35);
+  let dLon = gcjDeltaLon(lo - 105, la - 35);
+  const radLat = la / 180 * Math.PI;
+  let magic = Math.sin(radLat);
+  magic = 1 - GCJ_EE * magic * magic;
+  const sqrtMagic = Math.sqrt(magic);
+  dLat = dLat * 180 / ((GCJ_A * (1-GCJ_EE) / (magic*sqrtMagic)) * Math.PI);
+  dLon = dLon * 180 / ((GCJ_A / sqrtMagic * Math.cos(radLat)) * Math.PI);
+  return {lat:la+dLat, lon:lo+dLon};
+}
+function gcj02ToWgs84(la, lo) {
+  if (gcjOutOfChina(lo, la)) return {lat:la, lon:lo};
+  let wgsLat = la, wgsLon = lo;
+  for (let i=0; i<6; i++) {
+    const g = wgs84ToGcj02(wgsLat, wgsLon);
+    const errLat = g.lat - la, errLon = g.lon - lo;
+    if (Math.abs(errLat) < 1e-9 && Math.abs(errLon) < 1e-9) break;
+    wgsLat -= errLat; wgsLon -= errLon;
+  }
+  return {lat:wgsLat, lon:wgsLon};
+}
+
+if (window.AMap) {
+  const initialGcj = wgs84ToGcj02(lat, lon);
+  amapMap = new window.AMap.Map('amap', { zoom:13, center:[initialGcj.lon, initialGcj.lat], viewMode:'2D' });
+  amapMarker = new window.AMap.Marker({
+    position:[initialGcj.lon, initialGcj.lat],
+    draggable:true,
+    content:pinIcon.options.html,
+    offset:new window.AMap.Pixel(-15, -42)
+  });
+  amapMap.add(amapMarker);
+  amapMarker.on('dragend', () => {
+    const p = amapMarker.getPosition();
+    const wgs = gcj02ToWgs84(p.getLat(), p.getLng());
+    setPos(wgs.lat, wgs.lon);
+  });
+  amapMap.on('click', e => {
+    const wgs = gcj02ToWgs84(e.lnglat.getLat(), e.lnglat.getLng());
+    setPos(wgs.lat, wgs.lon);
+  });
+}
+
 function switchLayer(name) {
-  map.removeLayer(currentLayer);
-  currentLayer = tiles[name];
-  currentLayer.addTo(map);
+  if (name === 'amap') {
+    if (!amapMap) { toast('高德地图加载失败，请检查 AMAP_JS_KEY 配置', 4000); return; }
+    if (currentLayerName !== 'amap') {
+      const center = map.getCenter();
+      const gcj = wgs84ToGcj02(center.lat, center.lng);
+      amapMap.setZoomAndCenter(map.getZoom(), [gcj.lon, gcj.lat]);
+      document.getElementById('map').classList.add('hidden');
+      document.getElementById('amap').classList.remove('hidden');
+      amapMap.resize();
+    }
+  } else {
+    if (!tiles[name]) return;
+    if (currentLayerName === 'amap' && amapMap) {
+      const center = amapMap.getCenter();
+      const wgs = gcj02ToWgs84(center.getLat(), center.getLng());
+      document.getElementById('amap').classList.add('hidden');
+      document.getElementById('map').classList.remove('hidden');
+      map.invalidateSize();
+      map.setView([wgs.lat, wgs.lon], amapMap.getZoom());
+    }
+    if (currentLayer !== tiles[name]) {
+      map.removeLayer(currentLayer);
+      currentLayer = tiles[name];
+      currentLayer.addTo(map);
+    }
+  }
+  currentLayerName = name;
   document.querySelectorAll('.layer-btn').forEach(b => b.classList.toggle('active', b.dataset.layer === name));
 }
-let marker = L.marker([lat, lon], {draggable:true, icon:pinIcon}).addTo(map);
 
 marker.on('dragend', e => { const p=e.target.getLatLng(); setPos(p.lat, p.lng); });
 map.on('click', e => { setPos(e.latlng.lat, e.latlng.lng); });
@@ -206,6 +305,10 @@ function normLon(x) { return ((((x + 180) % 360) + 360) % 360) - 180; }
 function setPos(newLat, newLon) {
   lat = newLat; lon = normLon(newLon); selected = true;
   marker.setLatLng([lat, lon]);
+  if (amapMarker) {
+    const gcj = wgs84ToGcj02(lat, lon);
+    amapMarker.setPosition([gcj.lon, gcj.lat]);
+  }
   document.getElementById('coords').textContent = '经度 ' + lon.toFixed(6) + '  纬度 ' + lat.toFixed(6);
   autoQueryAlt();
 }
@@ -213,6 +316,10 @@ function setPos(newLat, newLon) {
 function moveTo(newLat, newLon, zoom) {
   setPos(newLat, newLon);
   map.setView([lat, lon], zoom || 15);
+  if (amapMap) {
+    const gcj = wgs84ToGcj02(lat, lon);
+    amapMap.setZoomAndCenter(zoom || 15, [gcj.lon, gcj.lat]);
+  }
 }
 
 function toast(msg, ms) {

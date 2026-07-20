@@ -6,7 +6,47 @@ const app = new Hono();
 
 app.get("/", (c) => {
   c.header("Cache-Control", "no-cache, no-store, must-revalidate");
-  return c.html(getPageHtml());
+  return c.html(getPageHtml({ amapJsKey: c.env?.AMAP_JS_KEY || "" }));
+});
+
+// 高德 JS API 安全代理。浏览器只拿到可公开的 AMAP_JS_KEY；
+// securityJsCode 始终保留在 Worker Secret 中，并由同源代理附加到上游请求。
+app.all("/_AMapService/*", async (c) => {
+  const securityCode = c.env?.AMAP_SECURITY_CODE;
+  if (!securityCode) return c.json({ error: "服务端未配置 AMAP_SECURITY_CODE" }, 503);
+
+  const requestUrl = new URL(c.req.url);
+  const upstreamPath = requestUrl.pathname.slice("/_AMapService".length);
+  if (!upstreamPath || !upstreamPath.startsWith("/")) {
+    return c.json({ error: "无效的高德代理路径" }, 400);
+  }
+
+  const requestKey = requestUrl.searchParams.get("key");
+  const configuredKey = c.env?.AMAP_JS_KEY;
+  if (requestKey && configuredKey && requestKey !== configuredKey) {
+    return c.json({ error: "高德 JS API Key 不匹配" }, 403);
+  }
+
+  requestUrl.searchParams.set("jscode", securityCode);
+  const upstreamOrigin = upstreamPath.startsWith("/v4/map/styles")
+    ? "https://webapi.amap.com"
+    : "https://restapi.amap.com";
+  const upstreamUrl = `${upstreamOrigin}${upstreamPath}${requestUrl.search}`;
+  const method = c.req.method.toUpperCase();
+  const headers = new Headers();
+  for (const name of ["accept", "content-type"]) {
+    const value = c.req.header(name);
+    if (value) headers.set(name, value);
+  }
+  const init = { method, headers };
+  if (method !== "GET" && method !== "HEAD") init.body = await c.req.arrayBuffer();
+
+  try {
+    return await fetch(upstreamUrl, init);
+  } catch (e) {
+    console.error(`AMap proxy failed: ${e && e.message ? e.message : e}`);
+    return c.json({ error: "高德地图代理请求失败" }, 502);
+  }
 });
 
 // 地点搜索: 由 Worker 代调用高德 Web 服务，AMAP_KEY 不会下发到浏览器。
