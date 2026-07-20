@@ -32,7 +32,7 @@ https://你的worker域名/
 - **点击地图** — 直接点选
 - **搜索地名** — 输入"上海外滩"等
 - **粘贴链接** — 从 Apple Maps / Google Maps / 高德 / 百度复制分享链接
-- **海拔缩放系数** — 控制 `field5 = 海拔(米) × 系数`；输入框默认留空，留空时按 `100` 处理
+- **海拔** — 按米写入 WLOC 的 `field5` 字段，最终取整数米
 - **当前位置** — 使用浏览器定位
 
 ### 4. 储存到设备
@@ -54,7 +54,6 @@ npm run deploy
 
 使用 Cloudflare Git 集成时，根目录必须设置为 `/worker`，构建命令留空，部署命令使用 `npx wrangler deploy`。Dashboard 中的 Worker 名称还应与 `worker/wrangler.jsonc` 的 `name` 一致。
 
-如需从 Cloudflare 预填网页的海拔缩放系数，在 Worker 的变量中添加 `ALTITUDE_SCALE`（例如 `100`）；未配置时输入框保持为空。变量修改后仍需打开网页并重新“储存到设备”，缩放值才会写入真机的 `wloc_settings_v2`。
 
 也可以在 CF Dashboard → Workers → 新建 Worker → 粘贴 `wloc-worker.js` → 部署；但该单文件是简化版本，Git/Wrangler 部署会包含完整 API。
 

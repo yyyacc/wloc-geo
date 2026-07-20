@@ -6,7 +6,7 @@ const app = new Hono();
 
 app.get("/", (c) => {
   c.header("Cache-Control", "no-cache, no-store, must-revalidate");
-  return c.html(getPageHtml({ altitudeScale: c.env?.ALTITUDE_SCALE }));
+  return c.html(getPageHtml());
 });
 
 // 地图链接解析: 供快捷指令调用。

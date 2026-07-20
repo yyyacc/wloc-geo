@@ -1,12 +1,4 @@
-function normalizeAltitudeScale(value) {
-  const n = Number(value);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
 export function getPageHtml(options = {}) {
-  const configuredAltitudeScale = normalizeAltitudeScale(options.altitudeScale);
-  const initialAltitudeScale = configuredAltitudeScale ?? "";
-  const defaultAltitudeScale = 100;
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -39,13 +31,10 @@ body { font-family:-apple-system,system-ui,"SF Pro","Helvetica Neue",sans-serif;
 .input-row { display:flex; gap:8px; margin-top:10px; }
 .input-row input { flex:1; padding:10px 12px; border:1px solid #d1d1d6; border-radius:8px; font-size:14px; outline:none; min-width:0; }
 .input-row input:focus { border-color:var(--blue); }
-.alt-options-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.45fr); gap:8px; margin-top:8px; align-items:end; }
+.alt-options-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px; margin-top:8px; align-items:end; }
 .alt-option { display:flex; flex-direction:column; gap:5px; min-width:0; font-size:11px; color:var(--gray); position:relative; }
 .alt-option input { width:100%; min-width:0; padding:10px 8px; border:1px solid #d1d1d6; border-radius:8px; font-size:13px; outline:none; }
 .alt-option input:focus { border-color:var(--blue); }
-.scale-help { cursor:help; }
-.scale-help::after { content:attr(data-tooltip); position:absolute; right:0; bottom:calc(100% + 8px); width:260px; max-width:80vw; padding:8px 10px; border-radius:8px; background:rgba(0,0,0,.86); color:#fff; font-size:11px; line-height:1.45; white-space:normal; opacity:0; visibility:hidden; transform:translateY(4px); transition:opacity .15s,transform .15s,visibility .15s; pointer-events:none; z-index:1001; box-shadow:0 4px 12px rgba(0,0,0,.2); }
-.scale-help:hover::after, .scale-help:focus-within::after { opacity:1; visibility:visible; transform:translateY(0); }
 .status { font-size:12px; color:var(--gray); margin-top:8px; text-align:center; }
 .error-banner { background:var(--red); color:#fff; padding:14px 16px; border-radius:12px; margin-bottom:12px; font-size:14px; line-height:1.5; display:none; }
 .error-banner b { display:block; margin-bottom:4px; }
@@ -120,10 +109,6 @@ body { font-family:-apple-system,system-ui,"SF Pro","Helvetica Neue",sans-serif;
         <span>层高(米)</span>
         <input id="floorHeightInput" type="number" step="0.1" min="0" placeholder="默认3" onchange="onAltAuto()" />
       </label>
-      <label class="alt-option scale-help" for="altitudeScaleInput" data-tooltip="写入规则：field5 = 海拔(米) × 海拔缩放系数。留空时使用 100。">
-        <span>海拔缩放系数 ⓘ</span>
-        <input id="altitudeScaleInput" type="number" step="any" min="0.000001" value="${initialAltitudeScale}" placeholder="默认100" />
-      </label>
     </div>
     <div class="row">
       <button class="btn btn-primary" id="saveBtn" onclick="save()">储存到设备</button>
@@ -183,8 +168,6 @@ const SAVE_API = 'https://gs-loc.apple.com/wloc-settings/save';
 const GEO_API = location.origin + '/api/geo';
 const PARSE_API = location.origin + '/api/parse';
 const FAV_KEY = 'wloc_favorites';
-const DEFAULT_ALTITUDE_SCALE = ${defaultAltitudeScale};
-const INITIAL_ALTITUDE_SCALE = ${JSON.stringify(initialAltitudeScale)};
 let lat = 22.544577, lon = 113.94114;
 let selected = false;
 let activeLon = null, activeLat = null;
@@ -333,10 +316,7 @@ function queryActive() {
         activeLat = parseFloat(d.latitude);
         const alt = (d.altitude != null && d.altitude !== '') ? d.altitude : cachedAlt(activeLon, activeLat);
         const altTxt = (alt != null && alt !== '') ? '  海拔 ' + alt + 'm' : '';
-        const hasSavedAltitudeScale = validAltitudeScale(d.altitudeScale);
-        const altitudeScale = hasSavedAltitudeScale ? parseFloat(d.altitudeScale) : DEFAULT_ALTITUDE_SCALE;
-        document.getElementById('altitudeScaleInput').value = hasSavedAltitudeScale ? altitudeScale : INITIAL_ALTITUDE_SCALE;
-        el.textContent = '经度 ' + activeLon.toFixed(6) + '  纬度 ' + activeLat.toFixed(6) + (d.accuracy ? '  精度 ' + d.accuracy + 'm' : '') + altTxt + '  缩放 ×' + altitudeScale;
+        el.textContent = '经度 ' + activeLon.toFixed(6) + '  纬度 ' + activeLat.toFixed(6) + (d.accuracy ? '  精度 ' + d.accuracy + 'm' : '') + altTxt;
         renderFavs();
       } else {
         activeLon = null; activeLat = null;
@@ -370,7 +350,6 @@ function clearActive() {
         activeLon = null; activeLat = null;
         try { localStorage.removeItem('wloc_saved_alt'); } catch(e) {}
         document.getElementById('activeValue').textContent = '已清除';
-        document.getElementById('altitudeScaleInput').value = INITIAL_ALTITUDE_SCALE;
         renderFavs();
         toast('已清除设备坐标');
       } else { toast('清除失败: ' + (d.error || ''), 3000); }
@@ -379,16 +358,6 @@ function clearActive() {
 }
 
 /* ---- Altitude helpers ---- */
-function validAltitudeScale(value) {
-  const n = parseFloat(value);
-  return Number.isFinite(n) && n > 0;
-}
-function resolveAltitudeScale() {
-  const raw = (document.getElementById('altitudeScaleInput').value || '').trim();
-  if (raw === '' || !validAltitudeScale(raw)) return { value: DEFAULT_ALTITUDE_SCALE, query: '' };
-  const value = parseFloat(raw);
-  return { value, query: '&altitudeScale=' + encodeURIComponent(value) };
-}
 async function onAltAuto() {
   const auto = document.getElementById('altAuto').checked;
   const inp = document.getElementById('altInput');
@@ -446,9 +415,8 @@ async function save() {
   showError(false);
   try {
     const alt = await resolveAlt();
-    const altitudeScale = resolveAltitudeScale();
     const altQs = (alt != null && !Number.isNaN(alt)) ? '&alt=' + alt : '';
-    const r = await fetch(SAVE_API + '?lon=' + lon + '&lat=' + lat + '&acc=25' + altQs + altitudeScale.query, {
+    const r = await fetch(SAVE_API + '?lon=' + lon + '&lat=' + lat + '&acc=25' + altQs, {
       method: 'GET', mode: 'cors', cache: 'no-store'
     });
     const d = await r.json();
@@ -458,7 +426,7 @@ async function save() {
       const altTxt = (alt != null && !Number.isNaN(alt)) ? '  海拔 ' + alt + 'm' : '';
       btn.textContent = '\\u2713 已储存'; btn.className = 'btn btn-primary success';
       document.getElementById('status').textContent = '\\u2713 已写入: ' + lon.toFixed(6) + ', ' + lat.toFixed(6) + altTxt + ' \\u00b7 ' + new Date().toLocaleTimeString('zh-CN');
-      document.getElementById('activeValue').textContent = '经度 ' + lon.toFixed(6) + '  纬度 ' + lat.toFixed(6) + '  精度 25m' + altTxt + '  缩放 ×' + altitudeScale.value;
+      document.getElementById('activeValue').textContent = '经度 ' + lon.toFixed(6) + '  纬度 ' + lat.toFixed(6) + '  精度 25m' + altTxt;
       renderFavs();
       toast('\\u2713 坐标已写入设备，下次定位生效');
       setTimeout(() => { btn.textContent='储存到设备'; btn.className='btn btn-primary'; btn.disabled=false; }, 2500);
