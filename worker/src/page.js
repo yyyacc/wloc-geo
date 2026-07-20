@@ -15,160 +15,247 @@ export function getPageHtml(options = {}) {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
 ${amapScript}
 <style>
-:root { --blue:#007aff; --green:#34c759; --red:#ff3b30; --gray:#8e8e93; --bg:#f2f2f7; --orange:#ff9500; }
+:root { --blue:#0a66ff; --blue-dark:#0755d9; --green:#24b35a; --red:#ff453a; --gray:#6f7785; --ink:#111827; --line:rgba(255,255,255,.68); --glass:rgba(248,250,253,.76); --soft:rgba(239,243,248,.82); }
 * { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:-apple-system,system-ui,"SF Pro","Helvetica Neue",sans-serif; background:var(--bg); }
-.map-shell { position:relative; height:50vh; width:100%; min-height:250px; }
+html, body { width:100%; height:100%; overflow:hidden; }
+body { font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",sans-serif; color:var(--ink); background:#dbe5ef; -webkit-font-smoothing:antialiased; }
+button, input { font:inherit; }
+button { -webkit-tap-highlight-color:transparent; }
+.app-shell { position:relative; width:100%; height:100vh; height:100dvh; overflow:hidden; }
+.map-shell { position:absolute; inset:0; width:100%; height:100%; background:#dce6ef; }
 .map-canvas { position:absolute; inset:0; width:100%; height:100%; }
 .map-canvas.hidden { visibility:hidden; pointer-events:none; }
-.panel { padding:16px; max-width:600px; margin:0 auto; }
-.card { background:#fff; border-radius:12px; padding:16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
-.card h3 { font-size:15px; font-weight:600; margin-bottom:10px; }
-.coords { font-family:"SF Mono",monospace; font-size:14px; color:#333; padding:8px 12px; background:var(--bg); border-radius:8px; word-break:break-all; }
-.row { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
-.btn { flex:1; min-width:100px; padding:12px 16px; border:none; border-radius:10px; font-size:14px; font-weight:500; cursor:pointer; transition:all .15s; }
-.btn-primary { background:var(--blue); color:#fff; }
-.btn-primary:active { background:#005bb5; transform:scale(.97); }
-.btn-secondary { background:#e5e5ea; color:#333; }
-.btn-secondary:active { background:#d1d1d6; transform:scale(.97); }
-.btn-danger { background:var(--red); color:#fff; }
-.btn-danger:active { background:#d63027; transform:scale(.97); }
-.btn.success { background:var(--green); color:#fff; }
-.btn-sm { flex:none; min-width:auto; padding:6px 12px; font-size:12px; border-radius:8px; }
-.input-row { display:flex; gap:8px; margin-top:10px; }
-.input-row input { flex:1; padding:10px 12px; border:1px solid #d1d1d6; border-radius:8px; font-size:14px; outline:none; min-width:0; }
-.input-row input:focus { border-color:var(--blue); }
-.search-results { display:none; margin-top:8px; border:1px solid #e5e5ea; border-radius:8px; overflow:hidden; max-height:300px; overflow-y:auto; }
+.leaflet-bottom.leaflet-right { bottom:calc(var(--sheet-height,360px) + 10px); right:68px; }
+.amap-logo, .amap-copyright { bottom:calc(var(--sheet-height,360px) + 14px) !important; }
+.glass { background:var(--glass); border:1px solid var(--line); box-shadow:0 14px 36px rgba(18,39,64,.18), inset 0 1px 0 rgba(255,255,255,.72); backdrop-filter:blur(24px) saturate(165%); -webkit-backdrop-filter:blur(24px) saturate(165%); }
+.top-stack { position:absolute; z-index:1200; top:max(14px,env(safe-area-inset-top)); left:14px; right:14px; max-width:520px; }
+.search-bar { height:56px; display:flex; align-items:center; gap:10px; padding:7px 8px 7px 16px; border-radius:22px; }
+.search-icon { width:18px; height:18px; flex:none; color:#5e6877; }
+.search-bar input { flex:1; min-width:0; height:40px; border:0; outline:0; background:transparent; color:var(--ink); font-size:16px; font-weight:500; }
+.search-bar input::placeholder { color:#737d8c; }
+.search-button { height:40px; min-width:66px; padding:0 16px; border:0; border-radius:15px; color:#fff; background:rgba(10,102,255,.9); font-size:14px; font-weight:700; cursor:pointer; box-shadow:0 6px 16px rgba(10,102,255,.25); }
+.search-button:active { transform:scale(.96); }
+.search-button:disabled { opacity:.62; }
+.search-results { display:none; margin-top:9px; max-height:min(36vh,320px); overflow-y:auto; border-radius:20px; padding:7px; }
 .search-results.show { display:block; }
-.search-result { width:100%; display:block; padding:10px 12px; border:0; border-bottom:1px solid #e5e5ea; background:#fff; text-align:left; cursor:pointer; }
+.search-result { width:100%; display:block; padding:11px 12px; border:0; border-bottom:1px solid rgba(93,108,127,.14); border-radius:12px; background:transparent; text-align:left; cursor:pointer; }
 .search-result:last-child { border-bottom:0; }
-.search-result:active { background:var(--bg); }
-.search-result-name { display:block; font-size:14px; font-weight:500; color:#222; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.search-result:active { background:rgba(255,255,255,.7); }
+.search-result-name { display:block; font-size:14px; font-weight:650; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .search-result-address { display:block; margin-top:3px; font-size:11px; line-height:1.35; color:var(--gray); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.alt-options-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px; margin-top:8px; align-items:end; }
-.alt-option { display:flex; flex-direction:column; gap:5px; min-width:0; font-size:11px; color:var(--gray); position:relative; }
-.alt-option input { width:100%; min-width:0; padding:10px 8px; border:1px solid #d1d1d6; border-radius:8px; font-size:13px; outline:none; }
-.alt-option input:focus { border-color:var(--blue); }
-.status { font-size:12px; color:var(--gray); margin-top:8px; text-align:center; }
-.error-banner { background:var(--red); color:#fff; padding:14px 16px; border-radius:12px; margin-bottom:12px; font-size:14px; line-height:1.5; display:none; }
-.error-banner b { display:block; margin-bottom:4px; }
-.toast { position:fixed; top:60px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.8); color:#fff; padding:10px 20px; border-radius:20px; font-size:14px; opacity:0; transition:opacity .3s; pointer-events:none; z-index:9999; max-width:90vw; text-align:center; }
-.toast.show { opacity:1; }
-.active-loc { background:var(--bg); border-radius:8px; padding:10px 12px; font-size:13px; color:#333; }
-.active-loc .label { font-size:11px; color:var(--gray); margin-bottom:4px; }
-.active-loc .value { font-family:"SF Mono",monospace; font-size:13px; }
-.fav-list { max-height:240px; overflow-y:auto; }
-.fav-item { display:flex; align-items:center; gap:8px; padding:10px 12px; background:var(--bg); border-radius:8px; margin-bottom:6px; cursor:pointer; transition:background .15s; }
-.fav-item:active { background:#e0e0e5; }
-.fav-item .fav-info { flex:1; min-width:0; }
-.fav-item .fav-name { font-size:14px; font-weight:500; color:#333; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.fav-item .fav-coords { font-size:11px; color:var(--gray); font-family:"SF Mono",monospace; margin-top:2px; }
-.fav-item .fav-active { font-size:10px; color:var(--green); font-weight:600; }
-.fav-item .fav-del { flex:none; width:28px; height:28px; border:none; border-radius:50%; background:transparent; color:var(--red); font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s; }
-.fav-item .fav-del:hover { background:rgba(255,59,48,.1); }
-.fav-empty { text-align:center; color:var(--gray); font-size:13px; padding:16px 0; }
-.fav-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
-.fav-header h3 { margin-bottom:0; }
-.modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.4); z-index:10000; display:none; align-items:center; justify-content:center; padding:20px; }
-.modal-overlay.show { display:flex; }
-.modal { background:#fff; border-radius:16px; padding:20px; width:100%; max-width:340px; }
-.modal h3 { font-size:17px; font-weight:600; margin-bottom:16px; text-align:center; }
-.modal input { width:100%; padding:12px; border:1px solid #d1d1d6; border-radius:10px; font-size:15px; outline:none; margin-bottom:12px; }
-.modal input:focus { border-color:var(--blue); }
-.modal .modal-btns { display:flex; gap:8px; }
-.modal .modal-btns .btn { padding:12px; }
-.layer-switch { position:absolute; top:10px; right:10px; z-index:1000; display:flex; gap:4px; background:rgba(255,255,255,.92); border-radius:8px; padding:4px; box-shadow:0 2px 8px rgba(0,0,0,.15); }
-.layer-btn { border:none; background:transparent; padding:6px 10px; border-radius:6px; font-size:12px; font-weight:500; color:#333; cursor:pointer; transition:all .15s; white-space:nowrap; }
-.layer-btn.active { background:var(--blue); color:#fff; }
+.layer-switch { position:absolute; top:calc(max(14px,env(safe-area-inset-top)) + 68px); right:14px; z-index:1100; display:flex; gap:3px; padding:4px; border-radius:14px; }
+.layer-btn { border:0; background:transparent; padding:7px 10px; border-radius:10px; font-size:12px; font-weight:650; color:#344052; cursor:pointer; transition:.16s ease; white-space:nowrap; }
+.layer-btn.active { background:rgba(10,102,255,.92); color:#fff; box-shadow:0 4px 12px rgba(10,102,255,.24); }
 .layer-btn:active { transform:scale(.95); }
-@media(max-width:480px) { .map-shell { height:44vh; } .panel { padding:12px; } .layer-btn { padding:5px 7px; font-size:11px; } }
+.locate-fab { position:absolute; z-index:1150; right:18px; bottom:calc(var(--sheet-height,360px) + max(24px,env(safe-area-inset-bottom))); width:52px; height:52px; display:grid; place-items:center; border:1px solid var(--line); border-radius:50%; color:#0c345d; cursor:pointer; }
+.locate-fab svg { width:23px; height:23px; }
+.locate-fab:active { transform:scale(.94); }
+.bottom-sheet { position:absolute; z-index:1100; left:12px; right:12px; bottom:max(10px,env(safe-area-inset-bottom)); max-height:min(56dvh,470px); overflow-y:auto; overscroll-behavior:contain; padding:8px 16px 14px; border-radius:28px; scrollbar-width:none; }
+.bottom-sheet::-webkit-scrollbar { display:none; }
+.sheet-handle { width:38px; height:5px; margin:1px auto 10px; border-radius:99px; background:rgba(55,65,81,.2); }
+.selection-head { display:grid; grid-template-columns:1fr auto; gap:2px 12px; align-items:start; }
+.eyebrow { color:var(--blue); font-size:11px; line-height:1; font-weight:750; letter-spacing:.08em; text-transform:uppercase; }
+.selection-head h1 { margin-top:5px; font-size:20px; line-height:1.2; letter-spacing:-.02em; }
+.favorite-icon { grid-column:2; grid-row:1 / span 2; width:40px; height:40px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.8); border-radius:14px; background:rgba(255,255,255,.48); color:#f05269; cursor:pointer; }
+.favorite-icon svg { width:20px; height:20px; }
+.coords { grid-column:1 / -1; margin-top:8px; padding:9px 11px; border-radius:12px; background:rgba(236,241,247,.78); color:#4e5968; font-family:"SF Mono",ui-monospace,monospace; font-size:12px; line-height:1.35; word-break:break-all; }
+.altitude-block { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,.72fr) minmax(0,.88fr); gap:8px; margin-top:10px; }
+.field { display:flex; flex-direction:column; gap:5px; min-width:0; color:var(--gray); font-size:10px; font-weight:650; }
+.field input { width:100%; min-width:0; height:40px; padding:0 10px; border:1px solid rgba(115,129,148,.2); border-radius:12px; outline:0; background:rgba(255,255,255,.58); color:var(--ink); font-size:13px; }
+.field input:focus { border-color:rgba(10,102,255,.58); box-shadow:0 0 0 3px rgba(10,102,255,.09); }
+.auto-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:9px; color:#4c5766; font-size:12px; }
+.auto-toggle { display:flex; align-items:center; gap:7px; cursor:pointer; }
+.auto-toggle input { position:absolute; opacity:0; pointer-events:none; }
+.toggle-track { position:relative; width:38px; height:22px; border-radius:99px; background:#b8c0cb; transition:.2s; }
+.toggle-track::after { content:""; position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:#fff; box-shadow:0 2px 5px rgba(0,0,0,.2); transition:.2s; }
+.auto-toggle input:checked + .toggle-track { background:var(--green); }
+.auto-toggle input:checked + .toggle-track::after { transform:translateX(16px); }
+.btn { min-width:0; padding:11px 14px; border:1px solid rgba(255,255,255,.68); border-radius:14px; font-size:14px; font-weight:680; cursor:pointer; transition:.16s ease; }
+.btn:active { transform:scale(.97); }
+.btn-primary { color:#fff; background:rgba(10,102,255,.92); box-shadow:0 8px 18px rgba(10,102,255,.24); }
+.btn-primary:active { background:var(--blue-dark); }
+.btn-secondary { color:#263244; background:rgba(255,255,255,.52); }
+.btn-danger { color:#fff; background:rgba(255,69,58,.9); }
+.btn.success { background:var(--green); }
+.btn-sm { flex:none; padding:7px 10px; border-radius:10px; font-size:11px; }
+.primary-action { width:100%; margin-top:10px; min-height:48px; font-size:16px; }
+.tool-tabs { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:9px; }
+.tool-tab { display:flex; align-items:center; justify-content:center; gap:6px; padding:10px 7px; border:1px solid rgba(255,255,255,.72); border-radius:13px; background:rgba(255,255,255,.44); color:#394658; font-size:12px; font-weight:650; cursor:pointer; }
+.tool-tab svg { width:16px; height:16px; }
+.tool-tab.active { color:var(--blue); background:rgba(235,243,255,.8); border-color:rgba(10,102,255,.2); }
+.tool-panel { display:none; margin-top:10px; padding-top:10px; border-top:1px solid rgba(84,101,122,.13); }
+.tool-panel.show { display:block; }
+.panel-title { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+.panel-title h3 { font-size:14px; }
+.input-row { display:flex; gap:8px; }
+.input-row input { flex:1; min-width:0; height:42px; padding:0 11px; border:1px solid rgba(115,129,148,.2); border-radius:12px; outline:0; background:rgba(255,255,255,.58); color:var(--ink); font-size:13px; }
+.input-row input:focus { border-color:rgba(10,102,255,.58); }
+.support-note { margin-top:6px; color:var(--gray); font-size:10px; }
+.row { display:flex; gap:8px; margin-top:9px; flex-wrap:wrap; }
+.row .btn { flex:1; }
+.status { margin-top:9px; color:var(--gray); font-size:10px; line-height:1.35; text-align:center; }
+.error-banner { background:rgba(255,69,58,.94); color:#fff; padding:12px 14px; border-radius:14px; margin-bottom:10px; font-size:12px; line-height:1.45; display:none; }
+.error-banner b { display:block; margin-bottom:3px; }
+.active-loc { padding:10px 11px; border-radius:12px; background:rgba(236,241,247,.78); color:#333; font-size:12px; }
+.active-loc .label { color:var(--gray); margin-bottom:4px; font-size:10px; }
+.active-loc .value { font-family:"SF Mono",ui-monospace,monospace; line-height:1.45; }
+.fav-list { max-height:210px; overflow-y:auto; }
+.fav-item { display:flex; align-items:center; gap:8px; padding:9px 10px; background:rgba(236,241,247,.78); border-radius:12px; margin-bottom:6px; cursor:pointer; }
+.fav-item:active { background:rgba(225,232,241,.9); }
+.fav-item .fav-info { flex:1; min-width:0; }
+.fav-item .fav-name { color:#273244; font-size:13px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.fav-item .fav-coords { margin-top:2px; color:var(--gray); font-family:"SF Mono",ui-monospace,monospace; font-size:10px; }
+.fav-item .fav-active { color:var(--green); font-size:9px; font-weight:700; }
+.fav-item .fav-del { flex:none; width:28px; height:28px; border:0; border-radius:50%; background:transparent; color:var(--red); font-size:16px; cursor:pointer; }
+.fav-empty { color:var(--gray); text-align:center; font-size:12px; padding:12px 0; }
+.toast { position:fixed; z-index:3000; top:calc(max(14px,env(safe-area-inset-top)) + 64px); left:50%; transform:translateX(-50%); max-width:88vw; padding:10px 18px; border-radius:99px; background:rgba(15,23,42,.86); color:#fff; font-size:13px; text-align:center; opacity:0; transition:opacity .25s; pointer-events:none; backdrop-filter:blur(12px); }
+.toast.show { opacity:1; }
+.modal-overlay { position:fixed; inset:0; z-index:4000; display:none; align-items:center; justify-content:center; padding:20px; background:rgba(15,23,42,.38); backdrop-filter:blur(8px); }
+.modal-overlay.show { display:flex; }
+.modal { width:100%; max-width:340px; padding:20px; border:1px solid rgba(255,255,255,.72); border-radius:24px; background:rgba(250,252,255,.92); box-shadow:0 24px 60px rgba(15,23,42,.24); }
+.modal h3 { margin-bottom:16px; text-align:center; font-size:17px; }
+.modal input { width:100%; height:46px; padding:0 12px; border:1px solid rgba(115,129,148,.25); border-radius:13px; outline:0; background:#fff; font-size:15px; margin-bottom:12px; }
+.modal input:focus { border-color:var(--blue); }
+.modal-btns { display:flex; gap:8px; }
+.modal-btns .btn { flex:1; }
+@media(min-width:720px) {
+  .top-stack { left:20px; top:20px; }
+  .layer-switch { top:20px; right:20px; }
+  .bottom-sheet { left:20px; right:auto; bottom:20px; width:440px; max-height:calc(100dvh - 112px); }
+  .locate-fab { right:20px; bottom:20px; }
+  .leaflet-bottom.leaflet-right { bottom:0; right:0; }
+  .amap-logo, .amap-copyright { bottom:0 !important; }
+}
+@media(max-width:390px) {
+  .bottom-sheet { left:8px; right:8px; padding-left:13px; padding-right:13px; border-radius:24px; }
+  .altitude-block { grid-template-columns:1.2fr .7fr .85fr; gap:6px; }
+  .field input { padding:0 7px; font-size:12px; }
+  .tool-tab { font-size:11px; }
+}
 </style>
 </head>
 <body>
-<div class="map-shell">
-<div id="map" class="map-canvas"></div>
-<div id="amap" class="map-canvas hidden"></div>
-<div class="layer-switch">
-  <button class="layer-btn active" data-layer="satellite" onclick="switchLayer('satellite')">卫星</button>
-  <button class="layer-btn" data-layer="amap" onclick="switchLayer('amap')">高德</button>
-  <button class="layer-btn" data-layer="voyager" onclick="switchLayer('voyager')">彩色</button>
-</div>
-</div>
-<div class="panel">
-  <div class="error-banner" id="errorBanner">
-    <b>模块未生效</b>
-    请检查以下配置：<br>
-    1. 已安装并启用 WLOC 定位模块<br>
-    2. MITM 已开启且信任证书<br>
-    3. MITM 主机名包含 gs-loc.apple.com<br>
-    4. 当前网络已走代理
+<div class="app-shell">
+  <div class="map-shell">
+    <div id="map" class="map-canvas"></div>
+    <div id="amap" class="map-canvas hidden"></div>
   </div>
-  <div class="card">
-    <h3>选择目标位置</h3>
-    <div class="coords" id="coords">点击地图或使用下方工具选择位置</div>
-    <div class="input-row" style="margin-top:10px">
-      <input id="altInput" type="number" step="0.1" placeholder="海拔(米) 留空=不改/自动" />
-      <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--gray);white-space:nowrap">
-        <input type="checkbox" id="altAuto" onchange="onAltAuto()" /> 自动查询地面海拔
-      </label>
+
+  <div class="top-stack">
+    <div class="search-bar glass">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
+      <input id="searchInput" placeholder="搜索地名或地址" autocomplete="off" />
+      <button class="search-button" id="searchBtn" onclick="searchPlace()">搜索</button>
     </div>
-    <div class="alt-options-row">
-      <label class="alt-option" for="floorInput">
+    <div class="search-results glass" id="searchResults" aria-live="polite"></div>
+  </div>
+
+  <div class="layer-switch glass" aria-label="地图样式">
+    <button class="layer-btn active" data-layer="satellite" onclick="switchLayer('satellite')">卫星</button>
+    <button class="layer-btn" data-layer="amap" onclick="switchLayer('amap')">高德</button>
+    <button class="layer-btn" data-layer="voyager" onclick="switchLayer('voyager')">彩色</button>
+  </div>
+
+  <button class="locate-fab glass" onclick="locateMe()" aria-label="定位到当前位置" title="当前位置">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><circle cx="12" cy="12" r="8"></circle><path d="M12 2V5M12 19V22M2 12H5M19 12H22"></path></svg>
+  </button>
+
+  <main class="bottom-sheet glass" id="bottomSheet">
+    <div class="sheet-handle"></div>
+    <div class="error-banner" id="errorBanner">
+      <b>模块未生效</b>
+      请确认定位模块、MITM、证书及代理网络均已正确启用。
+    </div>
+
+    <section class="selection-head">
+      <div>
+        <div class="eyebrow">WLOC · 目标位置</div>
+        <h1 id="selectionTitle">选择一个位置</h1>
+      </div>
+      <button class="favorite-icon" onclick="addFav()" aria-label="收藏位置" title="收藏位置">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"></path></svg>
+      </button>
+      <div class="coords" id="coords">单击地图或搜索地点选择目标坐标</div>
+    </section>
+
+    <section class="altitude-block" aria-label="海拔设置">
+      <label class="field" for="altInput">
+        <span>海拔（米）</span>
+        <input id="altInput" type="number" step="0.1" placeholder="自动查询" />
+      </label>
+      <label class="field" for="floorInput">
         <span>楼层</span>
         <input id="floorInput" type="number" step="1" min="1" placeholder="可选" onchange="onAltAuto()" />
       </label>
-      <label class="alt-option" for="floorHeightInput">
-        <span>层高(米)</span>
-        <input id="floorHeightInput" type="number" step="0.1" min="0" placeholder="默认3" onchange="onAltAuto()" />
+      <label class="field" for="floorHeightInput">
+        <span>层高（米）</span>
+        <input id="floorHeightInput" type="number" step="0.1" min="0" placeholder="默认 3" onchange="onAltAuto()" />
+      </label>
+    </section>
+    <div class="auto-row">
+      <span>选点后自动获取地面高程</span>
+      <label class="auto-toggle">
+        <input type="checkbox" id="altAuto" onchange="onAltAuto()" />
+        <span class="toggle-track" aria-hidden="true"></span>
+        <span>自动</span>
       </label>
     </div>
-    <div class="row">
-      <button class="btn btn-primary" id="saveBtn" onclick="save()">储存到设备</button>
-      <button class="btn btn-secondary" onclick="addFav()">收藏位置</button>
-      <button class="btn btn-secondary" onclick="locateMe()">当前位置</button>
-    </div>
-  </div>
-  <div class="card">
-    <div class="fav-header">
-      <h3>收藏的位置</h3>
-      <button class="btn btn-sm btn-secondary" onclick="clearAllFav()" id="clearAllBtn" style="display:none">清空全部</button>
-    </div>
-    <div id="favList" class="fav-list"></div>
-  </div>
-  <div class="card">
-    <h3>当前生效坐标</h3>
-    <div class="active-loc" id="activeLoc">
-      <div class="label">设备持久化数据 (wloc_settings_v2)</div>
-      <div class="value" id="activeValue">查询中...</div>
-    </div>
-    <div class="row">
-      <button class="btn btn-sm btn-secondary" onclick="queryActive()">刷新</button>
-      <button class="btn btn-sm btn-danger" onclick="clearActive()">清除数据</button>
-    </div>
-  </div>
-  <div class="card">
-    <h3>粘贴地图链接</h3>
-    <div class="input-row">
-      <input id="urlInput" placeholder="Apple/Google/高德地图链接 或 经纬度" />
-      <button class="btn btn-secondary" style="flex:none;min-width:56px" onclick="parseUrl()">解析</button>
-    </div>
-    <div style="font-size:11px;color:var(--gray);margin-top:6px">支持 Apple Maps · Google Maps · 高德 · 百度 · 坐标文本</div>
-  </div>
-  <div class="card">
-    <h3>搜索地点</h3>
-    <div class="input-row">
-      <input id="searchInput" placeholder="输入地名（如: 上海外滩）" />
-      <button class="btn btn-secondary" id="searchBtn" style="flex:none;min-width:56px" onclick="searchPlace()">搜索</button>
-    </div>
-    <div class="search-results" id="searchResults" aria-live="polite"></div>
-  </div>
-  <div class="status" id="status">选好位置后点击「储存到设备」写入代理工具</div>
+
+    <button class="btn btn-primary primary-action" id="saveBtn" onclick="save()">锁定到此位置</button>
+
+    <nav class="tool-tabs" aria-label="位置工具">
+      <button class="tool-tab" data-panel="favorites" onclick="toggleToolPanel('favorites')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"></path></svg>
+        收藏夹
+      </button>
+      <button class="tool-tab" data-panel="import" onclick="toggleToolPanel('import')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1"></path><path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1"></path></svg>
+        导入链接
+      </button>
+      <button class="tool-tab" data-panel="active" onclick="toggleToolPanel('active')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 22s7-4.4 7-12a7 7 0 1 0-14 0c0 7.6 7 12 7 12Z"></path><circle cx="12" cy="10" r="2.5"></circle></svg>
+        生效状态
+      </button>
+    </nav>
+
+    <section class="tool-panel" id="toolPanel-favorites">
+      <div class="panel-title">
+        <h3>收藏夹</h3>
+        <button class="btn btn-sm btn-secondary" onclick="clearAllFav()" id="clearAllBtn" style="display:none">清空全部</button>
+      </div>
+      <div id="favList" class="fav-list"></div>
+    </section>
+
+    <section class="tool-panel" id="toolPanel-import">
+      <div class="panel-title"><h3>从地图链接导入</h3></div>
+      <div class="input-row">
+        <input id="urlInput" placeholder="粘贴地图链接或经纬度" />
+        <button class="btn btn-secondary" onclick="parseUrl()">解析</button>
+      </div>
+      <div class="support-note">支持 Apple Maps · Google Maps · 高德 · 百度 · 坐标文本</div>
+    </section>
+
+    <section class="tool-panel" id="toolPanel-active">
+      <div class="panel-title"><h3>当前生效位置</h3></div>
+      <div class="active-loc" id="activeLoc">
+        <div class="label">设备持久化数据 · wloc_settings_v2</div>
+        <div class="value" id="activeValue">查询中...</div>
+      </div>
+      <div class="row">
+        <button class="btn btn-sm btn-secondary" onclick="queryActive()">刷新状态</button>
+        <button class="btn btn-sm btn-danger" onclick="clearActive()">清除数据</button>
+      </div>
+    </section>
+
+    <div class="status" id="status">选择位置后点击「锁定到此位置」写入代理工具</div>
+  </main>
 </div>
+
 <div class="toast" id="toast"></div>
 <div class="modal-overlay" id="favModal">
   <div class="modal">
     <h3>收藏此位置</h3>
-    <input id="favNameInput" placeholder="输入备注名称（如: 公司、家）" maxlength="30" />
+    <input id="favNameInput" placeholder="输入备注名称（如：公司、家）" maxlength="30" />
     <div style="font-size:12px;color:var(--gray);margin-bottom:12px;text-align:center" id="favModalCoords"></div>
     <div class="modal-btns">
       <button class="btn btn-secondary" onclick="closeFavModal()">取消</button>
@@ -187,7 +274,7 @@ let selected = false;
 let activeLon = null, activeLat = null;
 let placeResults = [];
 
-const map = L.map('map', {worldCopyJump:true, maxBounds:[[-90,-180],[90,180]], maxBoundsViscosity:1.0}).setView([lat, lon], 13);
+const map = L.map('map', {zoomControl:false, worldCopyJump:true, maxBounds:[[-90,-180],[90,180]], maxBoundsViscosity:1.0}).setView([lat, lon], 13);
 const tiles = {
   satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, noWrap:true, attribution:'ArcGIS'}),
   voyager: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {maxZoom:19, noWrap:true, attribution:'\\u00a9 Carto'})
@@ -302,19 +389,20 @@ marker.on('dragend', e => { const p=e.target.getLatLng(); setPos(p.lat, p.lng); 
 map.on('click', e => { setPos(e.latlng.lat, e.latlng.lng); });
 
 function normLon(x) { return ((((x + 180) % 360) + 360) % 360) - 180; }
-function setPos(newLat, newLon) {
+function setPos(newLat, newLon, label) {
   lat = newLat; lon = normLon(newLon); selected = true;
   marker.setLatLng([lat, lon]);
   if (amapMarker) {
     const gcj = wgs84ToGcj02(lat, lon);
     amapMarker.setPosition([gcj.lon, gcj.lat]);
   }
+  document.getElementById('selectionTitle').textContent = label || '已选择目标位置';
   document.getElementById('coords').textContent = '经度 ' + lon.toFixed(6) + '  纬度 ' + lat.toFixed(6);
   autoQueryAlt();
 }
 
-function moveTo(newLat, newLon, zoom) {
-  setPos(newLat, newLon);
+function moveTo(newLat, newLon, zoom, label) {
+  setPos(newLat, newLon, label);
   map.setView([lat, lon], zoom || 15);
   if (amapMap) {
     const gcj = wgs84ToGcj02(lat, lon);
@@ -330,6 +418,20 @@ function toast(msg, ms) {
 
 function showError(show) {
   document.getElementById('errorBanner').style.display = show ? 'block' : 'none';
+}
+
+function toggleToolPanel(name) {
+  const target = document.getElementById('toolPanel-' + name);
+  if (!target) return;
+  const shouldOpen = !target.classList.contains('show');
+  document.querySelectorAll('.tool-panel').forEach(panel => panel.classList.remove('show'));
+  document.querySelectorAll('.tool-tab').forEach(button => button.classList.remove('active'));
+  if (shouldOpen) {
+    target.classList.add('show');
+    const button = document.querySelector('.tool-tab[data-panel="' + name + '"]');
+    if (button) button.classList.add('active');
+    setTimeout(() => target.scrollIntoView({block:'nearest', behavior:'smooth'}), 0);
+  }
 }
 
 /* ---- Favorites (localStorage) ---- */
@@ -392,7 +494,7 @@ function confirmFav() {
 function loadFav(i) {
   const favs = getFavs();
   if (!favs[i]) return;
-  moveTo(favs[i].lat, favs[i].lon, 15);
+  moveTo(favs[i].lat, favs[i].lon, 15, favs[i].name);
   toast(favs[i].name + ' (' + favs[i].lon.toFixed(4) + ', ' + favs[i].lat.toFixed(4) + ')');
 }
 
@@ -520,7 +622,7 @@ async function resolveAlt() {
 async function save() {
   if (!selected) { toast('请先在地图上选择一个位置'); return; }
   const btn = document.getElementById('saveBtn');
-  btn.textContent = '储存中...'; btn.disabled = true;
+  btn.textContent = '锁定中...'; btn.disabled = true;
   showError(false);
   try {
     const alt = await resolveAlt();
@@ -533,17 +635,17 @@ async function save() {
       activeLon = lon; activeLat = lat;
       setCachedAlt(lat, lon, (alt != null && !Number.isNaN(alt)) ? alt : null);
       const altTxt = (alt != null && !Number.isNaN(alt)) ? '  海拔 ' + alt + 'm' : '';
-      btn.textContent = '\\u2713 已储存'; btn.className = 'btn btn-primary success';
+      btn.textContent = '\\u2713 已锁定'; btn.className = 'btn btn-primary primary-action success';
       document.getElementById('status').textContent = '\\u2713 已写入: ' + lon.toFixed(6) + ', ' + lat.toFixed(6) + altTxt + ' \\u00b7 ' + new Date().toLocaleTimeString('zh-CN');
       document.getElementById('activeValue').textContent = '经度 ' + lon.toFixed(6) + '  纬度 ' + lat.toFixed(6) + '  精度 25m' + altTxt;
       renderFavs();
       toast('\\u2713 坐标已写入设备，下次定位生效');
-      setTimeout(() => { btn.textContent='储存到设备'; btn.className='btn btn-primary'; btn.disabled=false; }, 2500);
+      setTimeout(() => { btn.textContent='锁定到此位置'; btn.className='btn btn-primary primary-action'; btn.disabled=false; }, 2500);
     } else {
       throw new Error(d.error || '写入失败');
     }
   } catch(e) {
-    btn.textContent = '储存到设备'; btn.className = 'btn btn-primary'; btn.disabled = false;
+    btn.textContent = '锁定到此位置'; btn.className = 'btn btn-primary primary-action'; btn.disabled = false;
     showError(true);
     toast('\\u2717 储存失败 - 请检查模块配置', 4000);
   }
@@ -553,7 +655,7 @@ function locateMe() {
   if (!navigator.geolocation) return toast('浏览器不支持定位');
   toast('获取位置中...');
   navigator.geolocation.getCurrentPosition(
-    pos => { moveTo(pos.coords.latitude, pos.coords.longitude, 16); toast('已获取当前位置'); },
+    pos => { moveTo(pos.coords.latitude, pos.coords.longitude, 16, '当前所在位置'); toast('已获取当前位置'); },
     err => toast('定位失败: ' + err.message, 3000),
     { enableHighAccuracy:true, timeout:10000 }
   );
@@ -593,7 +695,7 @@ async function parseUrl() {
     const parsedLat = parseFloat(d.lat);
     const parsedLon = parseFloat(d.lon);
     if (r.ok && Number.isFinite(parsedLat) && Number.isFinite(parsedLon) && Math.abs(parsedLat) <= 90 && Math.abs(parsedLon) <= 180) {
-      moveTo(parsedLat, parsedLon, 15);
+      moveTo(parsedLat, parsedLon, 15, d.name || '已导入位置');
       toast((d.name ? d.name + ' · ' : '已解析: ') + parsedLon.toFixed(4) + ', ' + parsedLat.toFixed(4));
       return;
     }
@@ -608,7 +710,7 @@ async function parseUrl() {
     toast('解析失败: ' + (apiError || '请检查链接格式'), 4500);
     return;
   }
-  moveTo(result.lat, result.lon, 15);
+  moveTo(result.lat, result.lon, 15, '已导入位置');
   toast('已解析: ' + result.lon.toFixed(4) + ', ' + result.lat.toFixed(4));
 }
 
@@ -660,7 +762,7 @@ function renderSearchResults() {
 function selectSearchResult(index) {
   const place = placeResults[index];
   if (!place) return;
-  moveTo(place.lat, place.lon, 16);
+  moveTo(place.lat, place.lon, 16, place.name);
   document.getElementById('searchInput').value = place.name;
   document.getElementById('searchResults').classList.remove('show');
   toast((place.name + (place.address ? ' · ' + place.address : '')).slice(0, 70), 3500);
@@ -676,6 +778,14 @@ document.addEventListener('paste', e => {
 document.getElementById('searchInput').addEventListener('keydown', e => { if(e.key==='Enter') searchPlace(); });
 document.getElementById('urlInput').addEventListener('keydown', e => { if(e.key==='Enter') parseUrl(); });
 document.getElementById('favNameInput').addEventListener('keydown', e => { if(e.key==='Enter') confirmFav(); });
+
+function syncSheetHeight() {
+  const sheet = document.getElementById('bottomSheet');
+  document.documentElement.style.setProperty('--sheet-height', sheet.offsetHeight + 'px');
+}
+if (window.ResizeObserver) new ResizeObserver(syncSheetHeight).observe(document.getElementById('bottomSheet'));
+window.addEventListener('resize', syncSheetHeight);
+syncSheetHeight();
 
 renderFavs();
 queryActive();
