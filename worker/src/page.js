@@ -75,11 +75,7 @@ body { font-family:-apple-system,system-ui,"SF Pro","Helvetica Neue",sans-serif;
 <div id="map"></div>
 <div class="layer-switch">
   <button class="layer-btn active" data-layer="satellite" onclick="switchLayer('satellite')">卫星</button>
-  <button class="layer-btn" data-layer="wgs84" onclick="switchLayer('wgs84')">WGS84</button>
-  <button class="layer-btn" data-layer="amap" onclick="switchLayer('amap')">高德</button>
   <button class="layer-btn" data-layer="voyager" onclick="switchLayer('voyager')">彩色</button>
-  <button class="layer-btn" data-layer="standard" onclick="switchLayer('standard')">标准</button>
-  <button class="layer-btn" data-layer="dark" onclick="switchLayer('dark')">暗色</button>
 </div>
 </div>
 <div class="panel">
@@ -175,10 +171,6 @@ let activeLon = null, activeLat = null;
 const map = L.map('map', {worldCopyJump:true, maxBounds:[[-90,-180],[90,180]], maxBoundsViscosity:1.0}).setView([lat, lon], 13);
 const tiles = {
   satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, noWrap:true, attribution:'ArcGIS'}),
-  wgs84: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, noWrap:true, attribution:'ArcGIS WGS84'}),
-  standard: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, noWrap:true, attribution:'\\u00a9 OSM'}),
-  dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {maxZoom:19, noWrap:true, attribution:'\\u00a9 Carto'}),
-  amap: L.tileLayer('https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}', {maxZoom:18, noWrap:true, subdomains:'1234', attribution:'\\u00a9 高德'}),
   voyager: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {maxZoom:19, noWrap:true, attribution:'\\u00a9 Carto'})
 };
 const pinIcon = L.divIcon({
