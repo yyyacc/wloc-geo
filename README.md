@@ -18,6 +18,7 @@ MITM 主机名：`gs-loc.apple.com, gs-loc-cn.apple.com`
 
 - 选点页：使用 Cloudflare 部署完成后显示的 `workers.dev` 地址
 - 海拔查询接口：`GET /api/geo?lat=..&lon=..` → 返回 `{lat,lon,alt,name}`(地面海拔来自 open-meteo,无需 key);带 `?alt=123` 则直接回显。
+- 地点搜索接口：`GET /api/search?q=上海外滩&lat=31.2&lon=121.5` → 通过高德 Web 服务返回最多 12 条候选地点，并转换为 WGS84 坐标。
 
 ## Cloudflare Workers 部署
 
@@ -28,6 +29,8 @@ MITM 主机名：`gs-loc.apple.com, gs-loc-cn.apple.com`
 | 根目录 | `/worker` |
 | 构建命令 | 留空 |
 | 部署命令 | `npx wrangler deploy` |
+
+在 Worker 的 Settings > Variables and Secrets 中配置 Secret `AMAP_KEY`。该 Key 仅由 `/api/search` 在服务端读取，不会发送到浏览器。
 
 `worker/wrangler.jsonc` 中的 Worker 名称是 `wloc-geo`。如果 Cloudflare Dashboard 中创建的 Worker 使用其他名称，请将配置文件中的 `name` 改成相同名称。
 

@@ -1,12 +1,71 @@
 import { Hono } from "hono/tiny";
 import { getPageHtml } from "./page.js";
-import { parseCoords, gcj02ToWgs84, round6 } from "./parse.js";
+import { parseCoords, gcj02ToWgs84, round6, wgs84ToGcj02 } from "./parse.js";
 
 const app = new Hono();
 
 app.get("/", (c) => {
   c.header("Cache-Control", "no-cache, no-store, must-revalidate");
   return c.html(getPageHtml());
+});
+
+// 地点搜索: 由 Worker 代调用高德 Web 服务，AMAP_KEY 不会下发到浏览器。
+// 当前地图中心用于结果排序；高德返回 GCJ-02，统一转换为地图使用的 WGS84。
+app.get("/api/search", async (c) => {
+  c.header("Cache-Control", "no-store");
+  try {
+    const keywords = (c.req.query("q") || "").trim();
+    if (!keywords) return c.json({ error: "缺少搜索关键词" }, 400);
+    if (keywords.length > 80) return c.json({ error: "搜索关键词过长" }, 400);
+
+    const key = c.env?.AMAP_KEY;
+    if (!key) return c.json({ error: "服务端未配置 AMAP_KEY" }, 503);
+
+    const params = new URLSearchParams({
+      key,
+      keywords,
+      offset: "12",
+      page: "1",
+      extensions: "base",
+    });
+    const centerLatRaw = c.req.query("lat");
+    const centerLonRaw = c.req.query("lon");
+    const centerLat = Number(centerLatRaw);
+    const centerLon = Number(centerLonRaw);
+    if (centerLatRaw != null && centerLonRaw != null && Number.isFinite(centerLat) && Number.isFinite(centerLon) && Math.abs(centerLat) <= 90 && Math.abs(centerLon) <= 180) {
+      const center = wgs84ToGcj02(centerLat, centerLon);
+      params.set("location", `${center.lon},${center.lat}`);
+      params.set("sortrule", "distance");
+    }
+
+    const response = await fetch(`https://restapi.amap.com/v3/place/text?${params}`, {
+      headers: { accept: "application/json" },
+    });
+    if (!response.ok) throw new Error(`高德搜索 HTTP ${response.status}`);
+    const data = await response.json();
+    if (data.status !== "1") {
+      console.error(`AMap search failed: ${data.infocode || "unknown"} ${data.info || ""}`);
+      throw new Error(data.info === "INVALID_USER_KEY" ? "高德地图 Key 无效" : `高德搜索失败 (${data.infocode || "未知错误"})`);
+    }
+
+    const results = (Array.isArray(data.pois) ? data.pois : []).flatMap((poi) => {
+      const parts = String(poi.location || "").split(",").map(Number);
+      if (parts.length !== 2 || !Number.isFinite(parts[0]) || !Number.isFinite(parts[1])) return [];
+      const point = gcj02ToWgs84(parts[1], parts[0]);
+      const addressParts = [poi.pname, poi.cityname, poi.adname, typeof poi.address === "string" ? poi.address : ""];
+      return [{
+        id: String(poi.id || ""),
+        name: String(poi.name || "未命名地点"),
+        address: addressParts.filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(" "),
+        type: String(poi.type || ""),
+        lat: round6(point.lat),
+        lon: round6(point.lon),
+      }];
+    });
+    return c.json({ results });
+  } catch (e) {
+    return c.json({ error: String(e && e.message ? e.message : e) }, 502);
+  }
 });
 
 // 地图链接解析: 供快捷指令调用。

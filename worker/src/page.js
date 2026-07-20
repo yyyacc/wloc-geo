@@ -31,6 +31,13 @@ body { font-family:-apple-system,system-ui,"SF Pro","Helvetica Neue",sans-serif;
 .input-row { display:flex; gap:8px; margin-top:10px; }
 .input-row input { flex:1; padding:10px 12px; border:1px solid #d1d1d6; border-radius:8px; font-size:14px; outline:none; min-width:0; }
 .input-row input:focus { border-color:var(--blue); }
+.search-results { display:none; margin-top:8px; border:1px solid #e5e5ea; border-radius:8px; overflow:hidden; max-height:300px; overflow-y:auto; }
+.search-results.show { display:block; }
+.search-result { width:100%; display:block; padding:10px 12px; border:0; border-bottom:1px solid #e5e5ea; background:#fff; text-align:left; cursor:pointer; }
+.search-result:last-child { border-bottom:0; }
+.search-result:active { background:var(--bg); }
+.search-result-name { display:block; font-size:14px; font-weight:500; color:#222; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.search-result-address { display:block; margin-top:3px; font-size:11px; line-height:1.35; color:var(--gray); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .alt-options-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px; margin-top:8px; align-items:end; }
 .alt-option { display:flex; flex-direction:column; gap:5px; min-width:0; font-size:11px; color:var(--gray); position:relative; }
 .alt-option input { width:100%; min-width:0; padding:10px 8px; border:1px solid #d1d1d6; border-radius:8px; font-size:13px; outline:none; }
@@ -142,8 +149,9 @@ body { font-family:-apple-system,system-ui,"SF Pro","Helvetica Neue",sans-serif;
     <h3>搜索地点</h3>
     <div class="input-row">
       <input id="searchInput" placeholder="输入地名（如: 上海外滩）" />
-      <button class="btn btn-secondary" style="flex:none;min-width:56px" onclick="searchPlace()">搜索</button>
+      <button class="btn btn-secondary" id="searchBtn" style="flex:none;min-width:56px" onclick="searchPlace()">搜索</button>
     </div>
+    <div class="search-results" id="searchResults" aria-live="polite"></div>
   </div>
   <div class="status" id="status">选好位置后点击「储存到设备」写入代理工具</div>
 </div>
@@ -163,10 +171,12 @@ body { font-family:-apple-system,system-ui,"SF Pro","Helvetica Neue",sans-serif;
 const SAVE_API = 'https://gs-loc.apple.com/wloc-settings/save';
 const GEO_API = location.origin + '/api/geo';
 const PARSE_API = location.origin + '/api/parse';
+const SEARCH_API = location.origin + '/api/search';
 const FAV_KEY = 'wloc_favorites';
 let lat = 22.544577, lon = 113.94114;
 let selected = false;
 let activeLon = null, activeLat = null;
+let placeResults = [];
 
 const map = L.map('map', {worldCopyJump:true, maxBounds:[[-90,-180],[90,180]], maxBoundsViscosity:1.0}).setView([lat, lon], 13);
 const tiles = {
@@ -498,15 +508,55 @@ async function parseUrl() {
 async function searchPlace() {
   const q = document.getElementById('searchInput').value.trim();
   if (!q) return toast('请输入地名');
+  const button = document.getElementById('searchBtn');
+  button.disabled = true;
+  button.textContent = '搜索中';
   toast('搜索中...');
   try {
-    const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(q));
-    const results = await r.json();
-    if (!results.length) { toast('未找到: ' + q, 3000); return; }
-    const p = results[0];
-    moveTo(parseFloat(p.lat), parseFloat(p.lon), 15);
-    toast(p.display_name.slice(0, 40));
-  } catch(e) { toast('搜索失败', 3000); }
+    const url = SEARCH_API + '?q=' + encodeURIComponent(q) + '&lat=' + lat + '&lon=' + lon;
+    const r = await fetch(url, { cache:'no-store' });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+    placeResults = Array.isArray(data.results) ? data.results : [];
+    renderSearchResults();
+    if (!placeResults.length) toast('未找到: ' + q, 3000);
+  } catch(e) {
+    placeResults = [];
+    renderSearchResults();
+    toast('搜索失败: ' + (e && e.message ? e.message : e), 4000);
+  } finally {
+    button.disabled = false;
+    button.textContent = '搜索';
+  }
+}
+
+function renderSearchResults() {
+  const list = document.getElementById('searchResults');
+  list.replaceChildren();
+  list.classList.toggle('show', placeResults.length > 0);
+  placeResults.forEach((place, index) => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'search-result';
+    item.onclick = () => selectSearchResult(index);
+    const name = document.createElement('span');
+    name.className = 'search-result-name';
+    name.textContent = place.name;
+    const address = document.createElement('span');
+    address.className = 'search-result-address';
+    address.textContent = place.address || place.type || (place.lon.toFixed(6) + ', ' + place.lat.toFixed(6));
+    item.append(name, address);
+    list.appendChild(item);
+  });
+}
+
+function selectSearchResult(index) {
+  const place = placeResults[index];
+  if (!place) return;
+  moveTo(place.lat, place.lon, 16);
+  document.getElementById('searchInput').value = place.name;
+  document.getElementById('searchResults').classList.remove('show');
+  toast((place.name + (place.address ? ' · ' + place.address : '')).slice(0, 70), 3500);
 }
 
 document.addEventListener('paste', e => {
