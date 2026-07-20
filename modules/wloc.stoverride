@@ -26,8 +26,8 @@ http:
 
 script-providers:
   WLOC.Location:
-    url: https://raw.githubusercontent.com/yyyacc/wloc-geo/refs/heads/main/dist/wloc.js
+    url: https://raw.githubusercontent.com/yyyacc/wloc-geo/refs/heads/main/dist/wloc.js?v=20260721-1
     interval: 86400
   WLOC.Settings:
-    url: https://raw.githubusercontent.com/yyyacc/wloc-geo/refs/heads/main/dist/wloc-settings.js
+    url: https://raw.githubusercontent.com/yyyacc/wloc-geo/refs/heads/main/dist/wloc-settings.js?v=20260721-1
     interval: 86400
