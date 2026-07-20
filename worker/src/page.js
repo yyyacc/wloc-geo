@@ -50,9 +50,12 @@ button { -webkit-tap-highlight-color:transparent; }
 .locate-fab { position:absolute; z-index:1150; right:18px; bottom:calc(var(--sheet-height,360px) + max(24px,env(safe-area-inset-bottom))); width:52px; height:52px; display:grid; place-items:center; border:1px solid var(--line); border-radius:50%; color:#0c345d; cursor:pointer; }
 .locate-fab svg { width:23px; height:23px; }
 .locate-fab:active { transform:scale(.94); }
-.bottom-sheet { position:absolute; z-index:1100; left:12px; right:12px; bottom:max(10px,env(safe-area-inset-bottom)); max-height:min(56dvh,470px); overflow-y:auto; overscroll-behavior:contain; padding:8px 16px 14px; border-radius:28px; scrollbar-width:none; }
+.bottom-sheet { position:absolute; z-index:1100; left:12px; right:12px; bottom:max(10px,env(safe-area-inset-bottom)); max-height:min(56dvh,470px); overflow-y:auto; overscroll-behavior:contain; padding:8px 16px 14px; border-radius:28px; scrollbar-width:none; transition:height .24s cubic-bezier(.22,.8,.3,1); }
 .bottom-sheet::-webkit-scrollbar { display:none; }
-.sheet-handle { width:38px; height:5px; margin:1px auto 10px; border-radius:99px; background:rgba(55,65,81,.2); }
+.bottom-sheet.is-dragging { transition:none; overflow:hidden; user-select:none; }
+.bottom-sheet.is-collapsed { overflow:hidden; }
+.sheet-handle { display:block; width:64px; height:17px; margin:-2px auto 3px; padding:0; border:0; background:transparent; cursor:ns-resize; touch-action:none; }
+.sheet-handle::after { content:""; display:block; width:38px; height:5px; margin:auto; border-radius:99px; background:rgba(55,65,81,.24); }
 .selection-head { display:grid; grid-template-columns:1fr auto; gap:2px 12px; align-items:start; }
 .eyebrow { color:var(--blue); font-size:11px; line-height:1; font-weight:750; letter-spacing:.08em; text-transform:uppercase; }
 .selection-head h1 { margin-top:5px; font-size:20px; line-height:1.2; letter-spacing:-.02em; }
@@ -63,13 +66,6 @@ button { -webkit-tap-highlight-color:transparent; }
 .field { display:flex; flex-direction:column; gap:5px; min-width:0; color:var(--gray); font-size:10px; font-weight:650; }
 .field input { width:100%; min-width:0; height:40px; padding:0 10px; border:1px solid rgba(115,129,148,.2); border-radius:12px; outline:0; background:rgba(255,255,255,.58); color:var(--ink); font-size:13px; }
 .field input:focus { border-color:rgba(10,102,255,.58); box-shadow:0 0 0 3px rgba(10,102,255,.09); }
-.auto-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:9px; color:#4c5766; font-size:12px; }
-.auto-toggle { display:flex; align-items:center; gap:7px; cursor:pointer; }
-.auto-toggle input { position:absolute; opacity:0; pointer-events:none; }
-.toggle-track { position:relative; width:38px; height:22px; border-radius:99px; background:#b8c0cb; transition:.2s; }
-.toggle-track::after { content:""; position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:#fff; box-shadow:0 2px 5px rgba(0,0,0,.2); transition:.2s; }
-.auto-toggle input:checked + .toggle-track { background:var(--green); }
-.auto-toggle input:checked + .toggle-track::after { transform:translateX(16px); }
 .btn { min-width:0; padding:11px 14px; border:1px solid rgba(255,255,255,.68); border-radius:14px; font-size:14px; font-weight:680; cursor:pointer; transition:.16s ease; }
 .btn:active { transform:scale(.97); }
 .btn-primary { color:#fff; background:rgba(10,102,255,.92); box-shadow:0 8px 18px rgba(10,102,255,.24); }
@@ -151,8 +147,8 @@ button { -webkit-tap-highlight-color:transparent; }
   </div>
 
   <div class="layer-switch glass" aria-label="地图样式">
-    <button class="layer-btn active" data-layer="satellite" onclick="switchLayer('satellite')">卫星</button>
-    <button class="layer-btn" data-layer="amap" onclick="switchLayer('amap')">高德</button>
+    <button class="layer-btn active" data-layer="amap" onclick="switchLayer('amap')">高德</button>
+    <button class="layer-btn" data-layer="satellite" onclick="switchLayer('satellite')">卫星</button>
     <button class="layer-btn" data-layer="voyager" onclick="switchLayer('voyager')">彩色</button>
   </div>
 
@@ -161,7 +157,7 @@ button { -webkit-tap-highlight-color:transparent; }
   </button>
 
   <main class="bottom-sheet glass" id="bottomSheet">
-    <div class="sheet-handle"></div>
+    <button class="sheet-handle" id="sheetHandle" aria-label="拖动以收起或展开面板" title="拖动以收起或展开"></button>
     <div class="error-banner" id="errorBanner">
       <b>模块未生效</b>
       请确认定位模块、MITM、证书及代理网络均已正确启用。
@@ -192,14 +188,6 @@ button { -webkit-tap-highlight-color:transparent; }
         <input id="floorHeightInput" type="number" step="0.1" min="0" placeholder="默认 3" onchange="onAltAuto()" />
       </label>
     </section>
-    <div class="auto-row">
-      <span>选点后自动获取地面高程</span>
-      <label class="auto-toggle">
-        <input type="checkbox" id="altAuto" onchange="onAltAuto()" />
-        <span class="toggle-track" aria-hidden="true"></span>
-        <span>自动</span>
-      </label>
-    </div>
 
     <button class="btn btn-primary primary-action" id="saveBtn" onclick="save()">锁定到此位置</button>
 
@@ -418,6 +406,7 @@ function toast(msg, ms) {
 
 function showError(show) {
   document.getElementById('errorBanner').style.display = show ? 'block' : 'none';
+  if (show) setTimeout(() => setSheetExpanded(true), 0);
 }
 
 function toggleToolPanel(name) {
@@ -430,7 +419,12 @@ function toggleToolPanel(name) {
     target.classList.add('show');
     const button = document.querySelector('.tool-tab[data-panel="' + name + '"]');
     if (button) button.classList.add('active');
-    setTimeout(() => target.scrollIntoView({block:'nearest', behavior:'smooth'}), 0);
+    setTimeout(() => {
+      setSheetExpanded(true);
+      target.scrollIntoView({block:'nearest', behavior:'smooth'});
+    }, 0);
+  } else {
+    setTimeout(() => setSheetExpanded(true), 0);
   }
 }
 
@@ -570,13 +564,11 @@ function clearActive() {
 
 /* ---- Altitude helpers ---- */
 async function onAltAuto() {
-  const auto = document.getElementById('altAuto').checked;
   const inp = document.getElementById('altInput');
-  if (!auto) return;
-  if (!selected) { toast('请先选择位置再自动查询海拔'); document.getElementById('altAuto').checked = false; return; }
+  if (!selected) return;
   inp.placeholder = '查询中...';
   const alt = await lookupAlt(lat, lon);
-  inp.placeholder = '海拔(米) 留空=不改/自动';
+  inp.placeholder = '自动查询';
   if (alt == null) { toast('海拔查询失败', 3000); return; }
   inp.value = alt;
   const fl = floorParam();
@@ -606,16 +598,15 @@ async function autoQueryAlt() {
   inp.placeholder = '查询中...';
   const alt = await lookupAlt(lat, lon);
   if (token !== altReqToken) return;
-  inp.placeholder = '海拔(米) 留空=不改/自动';
+  inp.placeholder = '自动查询';
   if (alt == null) return;
   inp.value = alt;
 }
-// 计算本次要写入的海拔: 手填优先, 勾选自动则查询, 否则 null(不改)
+// 计算本次要写入的海拔: 手填/已回填值优先, 空值时默认自动查询。
 async function resolveAlt() {
   const raw = (document.getElementById('altInput').value || '').trim();
   if (raw !== '' && !Number.isNaN(parseFloat(raw))) return parseFloat(raw);
-  if (document.getElementById('altAuto').checked) return await lookupAlt(lat, lon);
-  return null;
+  return await lookupAlt(lat, lon);
 }
 
 /* ---- Save to device ---- */
@@ -779,13 +770,69 @@ document.getElementById('searchInput').addEventListener('keydown', e => { if(e.k
 document.getElementById('urlInput').addEventListener('keydown', e => { if(e.key==='Enter') parseUrl(); });
 document.getElementById('favNameInput').addEventListener('keydown', e => { if(e.key==='Enter') confirmFav(); });
 
-function syncSheetHeight() {
-  const sheet = document.getElementById('bottomSheet');
-  document.documentElement.style.setProperty('--sheet-height', sheet.offsetHeight + 'px');
+const bottomSheet = document.getElementById('bottomSheet');
+const sheetHandle = document.getElementById('sheetHandle');
+const COLLAPSED_SHEET_HEIGHT = 126;
+let sheetExpanded = true;
+let sheetDrag = null;
+
+function measureExpandedSheetHeight() {
+  const previousHeight = bottomSheet.style.height;
+  const previousTransition = bottomSheet.style.transition;
+  bottomSheet.style.transition = 'none';
+  bottomSheet.style.height = 'auto';
+  const height = bottomSheet.offsetHeight;
+  bottomSheet.style.height = previousHeight;
+  bottomSheet.style.transition = previousTransition;
+  return Math.max(COLLAPSED_SHEET_HEIGHT, height);
 }
-if (window.ResizeObserver) new ResizeObserver(syncSheetHeight).observe(document.getElementById('bottomSheet'));
-window.addEventListener('resize', syncSheetHeight);
-syncSheetHeight();
+
+function setSheetExpanded(expanded) {
+  const targetHeight = expanded ? measureExpandedSheetHeight() : COLLAPSED_SHEET_HEIGHT;
+  sheetExpanded = expanded;
+  bottomSheet.classList.toggle('is-collapsed', !expanded);
+  bottomSheet.style.height = targetHeight + 'px';
+  sheetHandle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+}
+
+sheetHandle.addEventListener('pointerdown', e => {
+  sheetDrag = { startY:e.clientY, startHeight:bottomSheet.offsetHeight, maxHeight:measureExpandedSheetHeight() };
+  bottomSheet.classList.add('is-dragging');
+  bottomSheet.classList.remove('is-collapsed');
+  sheetHandle.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+sheetHandle.addEventListener('pointermove', e => {
+  if (!sheetDrag) return;
+  const nextHeight = Math.max(COLLAPSED_SHEET_HEIGHT, Math.min(sheetDrag.maxHeight, sheetDrag.startHeight + sheetDrag.startY - e.clientY));
+  bottomSheet.style.height = nextHeight + 'px';
+  e.preventDefault();
+});
+function finishSheetDrag(e) {
+  if (!sheetDrag) return;
+  const deltaY = e.clientY - sheetDrag.startY;
+  const wasExpanded = sheetExpanded;
+  sheetDrag = null;
+  bottomSheet.classList.remove('is-dragging');
+  if (Math.abs(deltaY) < 8) setSheetExpanded(!wasExpanded);
+  else setSheetExpanded(deltaY < 0);
+}
+sheetHandle.addEventListener('pointerup', finishSheetDrag);
+sheetHandle.addEventListener('pointercancel', () => {
+  if (!sheetDrag) return;
+  sheetDrag = null;
+  bottomSheet.classList.remove('is-dragging');
+  setSheetExpanded(sheetExpanded);
+});
+
+function syncSheetHeight() {
+  document.documentElement.style.setProperty('--sheet-height', bottomSheet.offsetHeight + 'px');
+}
+if (window.ResizeObserver) new ResizeObserver(syncSheetHeight).observe(bottomSheet);
+window.addEventListener('resize', () => setSheetExpanded(sheetExpanded));
+setSheetExpanded(true);
+if (amapMap) switchLayer('amap');
+else switchLayer('satellite');
 
 renderFavs();
 queryActive();
