@@ -96,8 +96,6 @@ npx wrangler deploy --dry-run  # 只打包检查，不上传
 npm run deploy                 # 正式部署
 ```
 
-也可以在 Cloudflare Dashboard 中新建 Worker，并粘贴 `worker/wloc-worker.js`。该单文件是旧版基础选点页面，仅支持经纬度选择、收藏、状态查询和保存，不包含海拔设置、完整链接解析、官方高德地图及服务端搜索；需要完整功能时应使用 Git/Wrangler 部署。
-
 ## Worker 接口
 
 | 路径 | 作用 |
