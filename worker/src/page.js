@@ -62,7 +62,7 @@ button { -webkit-tap-highlight-color:transparent; }
 .favorite-icon { grid-column:2; grid-row:1 / span 2; width:40px; height:40px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.8); border-radius:14px; background:rgba(255,255,255,.48); color:#f05269; cursor:pointer; }
 .favorite-icon svg { width:20px; height:20px; }
 .coords { grid-column:1 / -1; margin-top:8px; padding:9px 11px; border-radius:12px; background:rgba(236,241,247,.78); color:#4e5968; font-family:"SF Mono",ui-monospace,monospace; font-size:12px; line-height:1.35; word-break:break-all; }
-.altitude-block { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,.72fr) minmax(0,.88fr); gap:8px; margin-top:10px; }
+.altitude-block { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:8px; margin-top:10px; }
 .field { display:flex; flex-direction:column; gap:5px; min-width:0; color:var(--gray); font-size:10px; font-weight:650; }
 .field input { width:100%; min-width:0; height:40px; padding:0 10px; border:1px solid rgba(115,129,148,.2); border-radius:12px; outline:0; background:rgba(255,255,255,.58); color:var(--ink); font-size:13px; }
 .field input:focus { border-color:rgba(10,102,255,.58); box-shadow:0 0 0 3px rgba(10,102,255,.09); }
@@ -124,7 +124,7 @@ button { -webkit-tap-highlight-color:transparent; }
 }
 @media(max-width:390px) {
   .bottom-sheet { left:8px; right:8px; padding-left:13px; padding-right:13px; border-radius:24px; }
-  .altitude-block { grid-template-columns:1.2fr .7fr .85fr; gap:6px; }
+  .altitude-block { grid-template-columns:1.2fr 1fr; gap:6px; }
   .field input { padding:0 7px; font-size:12px; }
   .tool-tab { font-size:11px; }
 }
@@ -179,13 +179,9 @@ button { -webkit-tap-highlight-color:transparent; }
         <span>海拔（米）</span>
         <input id="altInput" type="number" step="0.1" placeholder="自动查询" />
       </label>
-      <label class="field" for="floorInput">
-        <span>楼层</span>
-        <input id="floorInput" type="number" step="1" min="1" placeholder="可选" onchange="onAltAuto()" />
-      </label>
-      <label class="field" for="floorHeightInput">
-        <span>层高（米）</span>
-        <input id="floorHeightInput" type="number" step="0.1" min="0" placeholder="默认 3" onchange="onAltAuto()" />
+      <label class="field" for="altitudeOffsetInput">
+        <span>海拔补偿（米）</span>
+        <input id="altitudeOffsetInput" type="number" step="0.01" value="0" />
       </label>
     </section>
 
@@ -531,8 +527,10 @@ function queryActive() {
         activeLon = parseFloat(d.longitude);
         activeLat = parseFloat(d.latitude);
         const alt = (d.altitude != null && d.altitude !== '') ? d.altitude : cachedAlt(activeLon, activeLat);
+        const altitudeOffset = validNumber(d.altitudeOffset) ? parseFloat(d.altitudeOffset) : 0;
+        document.getElementById('altitudeOffsetInput').value = altitudeOffset;
         const altTxt = (alt != null && alt !== '') ? '  海拔 ' + alt + 'm' : '';
-        el.textContent = formatCoords(activeLon, activeLat) + (d.accuracy ? '  精度 ' + d.accuracy + 'm' : '') + altTxt;
+        el.textContent = formatCoords(activeLon, activeLat) + (d.accuracy ? '  精度 ' + d.accuracy + 'm' : '') + altTxt + formatOffset(altitudeOffset);
         renderFavs();
       } else {
         activeLon = null; activeLat = null;
@@ -565,6 +563,7 @@ function clearActive() {
       if (d.success) {
         activeLon = null; activeLat = null;
         try { localStorage.removeItem('wloc_saved_alt'); } catch(e) {}
+        document.getElementById('altitudeOffsetInput').value = '0';
         document.getElementById('activeValue').textContent = '已清除';
         renderFavs();
         toast('已清除设备坐标');
@@ -582,21 +581,11 @@ async function onAltAuto() {
   inp.placeholder = '自动查询';
   if (alt == null) { toast('海拔查询失败', 3000); return; }
   inp.value = alt;
-  const fl = floorParam();
-  toast(fl ? ('海拔 ' + alt + ' m (含楼层)') : ('地面海拔 ' + alt + ' m'));
-}
-// 读取楼层参数, 返回可拼接的 query 字符串(无楼层则空)
-function floorParam() {
-  const f = (document.getElementById('floorInput').value || '').trim();
-  if (f === '' || Number.isNaN(parseInt(f, 10))) return '';
-  let qs = '&floor=' + parseInt(f, 10);
-  const fh = (document.getElementById('floorHeightInput').value || '').trim();
-  if (fh !== '' && !Number.isNaN(parseFloat(fh))) qs += '&floorHeight=' + parseFloat(fh);
-  return qs;
+  toast('地面海拔 ' + alt + ' m');
 }
 async function lookupAlt(la, lo) {
   try {
-    const r = await fetch(GEO_API + '?format=json&lat=' + la + '&lon=' + lo + '&cs=none' + floorParam(), { mode:'cors', cache:'no-store' });
+    const r = await fetch(GEO_API + '?format=json&lat=' + la + '&lon=' + lo + '&cs=none', { mode:'cors', cache:'no-store' });
     const d = await r.json();
     return (d && typeof d.alt === 'number') ? d.alt : null;
   } catch (e) { return null; }
@@ -621,6 +610,21 @@ async function resolveAlt() {
   return await lookupAlt(lat, lon);
 }
 
+function validNumber(value) {
+  return value != null && value !== '' && Number.isFinite(parseFloat(value));
+}
+
+function resolveAltitudeOffset() {
+  const raw = (document.getElementById('altitudeOffsetInput').value || '').trim();
+  return validNumber(raw) ? parseFloat(raw) : 0;
+}
+
+function formatOffset(value) {
+  if (!validNumber(value)) return '';
+  const offset = parseFloat(value);
+  return '  补偿 ' + (offset >= 0 ? '+' : '') + offset + 'm';
+}
+
 /* ---- Save to device ---- */
 async function save() {
   if (!selected) { toast('请先在地图上选择一个位置'); return; }
@@ -629,8 +633,10 @@ async function save() {
   showError(false);
   try {
     const alt = await resolveAlt();
+    const altitudeOffset = resolveAltitudeOffset();
     const altQs = (alt != null && !Number.isNaN(alt)) ? '&alt=' + alt : '';
-    const r = await fetch(SAVE_API + '?lon=' + lon + '&lat=' + lat + '&acc=25' + altQs, {
+    const offsetQs = '&altitudeOffset=' + encodeURIComponent(altitudeOffset);
+    const r = await fetch(SAVE_API + '?lon=' + lon + '&lat=' + lat + '&acc=25' + altQs + offsetQs, {
       method: 'GET', mode: 'cors', cache: 'no-store'
     });
     const d = await r.json();
@@ -638,9 +644,10 @@ async function save() {
       activeLon = lon; activeLat = lat;
       setCachedAlt(lat, lon, (alt != null && !Number.isNaN(alt)) ? alt : null);
       const altTxt = (alt != null && !Number.isNaN(alt)) ? '  海拔 ' + alt + 'm' : '';
+      const offsetTxt = formatOffset(altitudeOffset);
       btn.textContent = '\\u2713 已锁定'; btn.className = 'btn btn-primary primary-action success';
-      document.getElementById('status').textContent = '\\u2713 已写入: ' + formatCoords(lon, lat) + altTxt + ' \\u00b7 ' + new Date().toLocaleTimeString('zh-CN');
-      document.getElementById('activeValue').textContent = formatCoords(lon, lat) + '  精度 25m' + altTxt;
+      document.getElementById('status').textContent = '\\u2713 已写入: ' + formatCoords(lon, lat) + altTxt + offsetTxt + ' \\u00b7 ' + new Date().toLocaleTimeString('zh-CN');
+      document.getElementById('activeValue').textContent = formatCoords(lon, lat) + '  精度 25m' + altTxt + offsetTxt;
       renderFavs();
       toast('\\u2713 坐标已写入设备，下次定位生效');
       setTimeout(() => { btn.textContent='锁定到此位置'; btn.className='btn btn-primary primary-action'; btn.disabled=false; }, 2500);
