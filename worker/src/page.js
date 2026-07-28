@@ -606,6 +606,7 @@ let altReqToken = 0;
 async function autoQueryAlt() {
   const inp = document.getElementById('altInput');
   const token = ++altReqToken;
+  inp.value = '';
   inp.placeholder = '查询中...';
   const alt = await lookupAlt(lat, lon);
   if (token !== altReqToken) return;

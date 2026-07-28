@@ -214,17 +214,21 @@ async function lookupElevation(lat, lon) {
       const resp = await fetch(s.url, { headers: { accept: "application/json" } });
       if (!resp.ok) {
         lastErr = `${s.name} ${resp.status}`;
+        console.warn(`[elevation] source=${s.name} HTTP ${resp.status}`);
         continue;
       }
       const data = await resp.json();
       const elev = s.pick(data);
       if (typeof elev !== "number" || Number.isNaN(elev)) {
         lastErr = `${s.name} 解析失败`;
+        console.warn(`[elevation] source=${s.name} invalid response`);
         continue;
       }
+      console.log(`[elevation] source=${s.name} lat=${lat} lon=${lon} altitude=${elev}m`);
       return Math.round(elev * 10) / 10;
     } catch (e) {
       lastErr = `${s.name} ${e && e.message ? e.message : e}`;
+      console.warn(`[elevation] ${lastErr}`);
     }
   }
   throw new Error(`elevation api 全部失败: ${lastErr}`);
