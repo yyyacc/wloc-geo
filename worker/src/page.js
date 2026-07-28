@@ -377,6 +377,17 @@ marker.on('dragend', e => { const p=e.target.getLatLng(); setPos(p.lat, p.lng); 
 map.on('click', e => { setPos(e.latlng.lat, e.latlng.lng); });
 
 function normLon(x) { return ((((x + 180) % 360) + 360) % 360) - 180; }
+function formatDms(value) {
+  const totalCentiseconds = Math.round(Math.abs(value) * 360000);
+  const sign = value < 0 && totalCentiseconds > 0 ? '-' : '';
+  const degrees = Math.floor(totalCentiseconds / 360000);
+  const minutes = Math.floor((totalCentiseconds % 360000) / 6000);
+  const seconds = ((totalCentiseconds % 6000) / 100).toFixed(2);
+  return sign + degrees + '\u00b0' + minutes + "'" + seconds + '"';
+}
+function formatCoords(lo, la) {
+  return '经度 ' + formatDms(lo) + '  纬度 ' + formatDms(la);
+}
 function setPos(newLat, newLon, label) {
   lat = newLat; lon = normLon(newLon); selected = true;
   marker.setLatLng([lat, lon]);
@@ -385,7 +396,7 @@ function setPos(newLat, newLon, label) {
     amapMarker.setPosition([gcj.lon, gcj.lat]);
   }
   document.getElementById('selectionTitle').textContent = label || '已选择目标位置';
-  document.getElementById('coords').textContent = '经度 ' + lon.toFixed(6) + '  纬度 ' + lat.toFixed(6);
+  document.getElementById('coords').textContent = formatCoords(lon, lat);
   autoQueryAlt();
 }
 
@@ -450,7 +461,7 @@ function renderFavs() {
     return '<div class="fav-item" onclick="loadFav(' + i + ')">' +
       '<div class="fav-info">' +
         '<div class="fav-name">' + escHtml(f.name) + '<\\/div>' +
-        '<div class="fav-coords">' + f.lon.toFixed(6) + ', ' + f.lat.toFixed(6) + '<\\/div>' +
+        '<div class="fav-coords">' + formatDms(f.lon) + ', ' + formatDms(f.lat) + '<\\/div>' +
         (isActive ? '<div class="fav-active">\\u2713 当前生效<\\/div>' : '') +
       '<\\/div>' +
       '<button class="fav-del" onclick="event.stopPropagation();delFav(' + i + ')" title="删除">\\u00d7<\\/button>' +
@@ -464,7 +475,7 @@ function escHtml(s) {
 
 function addFav() {
   if (!selected) { toast('请先在地图上选择一个位置'); return; }
-  document.getElementById('favModalCoords').textContent = lon.toFixed(6) + ', ' + lat.toFixed(6);
+  document.getElementById('favModalCoords').textContent = formatCoords(lon, lat);
   document.getElementById('favNameInput').value = '';
   document.getElementById('favModal').classList.add('show');
   setTimeout(() => document.getElementById('favNameInput').focus(), 100);
@@ -489,7 +500,7 @@ function loadFav(i) {
   const favs = getFavs();
   if (!favs[i]) return;
   moveTo(favs[i].lat, favs[i].lon, 15, favs[i].name);
-  toast(favs[i].name + ' (' + favs[i].lon.toFixed(4) + ', ' + favs[i].lat.toFixed(4) + ')');
+  toast(favs[i].name + ' (' + formatDms(favs[i].lon) + ', ' + formatDms(favs[i].lat) + ')');
 }
 
 function delFav(i) {
@@ -521,7 +532,7 @@ function queryActive() {
         activeLat = parseFloat(d.latitude);
         const alt = (d.altitude != null && d.altitude !== '') ? d.altitude : cachedAlt(activeLon, activeLat);
         const altTxt = (alt != null && alt !== '') ? '  海拔 ' + alt + 'm' : '';
-        el.textContent = '经度 ' + activeLon.toFixed(6) + '  纬度 ' + activeLat.toFixed(6) + (d.accuracy ? '  精度 ' + d.accuracy + 'm' : '') + altTxt;
+        el.textContent = formatCoords(activeLon, activeLat) + (d.accuracy ? '  精度 ' + d.accuracy + 'm' : '') + altTxt;
         renderFavs();
       } else {
         activeLon = null; activeLat = null;
@@ -627,8 +638,8 @@ async function save() {
       setCachedAlt(lat, lon, (alt != null && !Number.isNaN(alt)) ? alt : null);
       const altTxt = (alt != null && !Number.isNaN(alt)) ? '  海拔 ' + alt + 'm' : '';
       btn.textContent = '\\u2713 已锁定'; btn.className = 'btn btn-primary primary-action success';
-      document.getElementById('status').textContent = '\\u2713 已写入: ' + lon.toFixed(6) + ', ' + lat.toFixed(6) + altTxt + ' \\u00b7 ' + new Date().toLocaleTimeString('zh-CN');
-      document.getElementById('activeValue').textContent = '经度 ' + lon.toFixed(6) + '  纬度 ' + lat.toFixed(6) + '  精度 25m' + altTxt;
+      document.getElementById('status').textContent = '\\u2713 已写入: ' + formatCoords(lon, lat) + altTxt + ' \\u00b7 ' + new Date().toLocaleTimeString('zh-CN');
+      document.getElementById('activeValue').textContent = formatCoords(lon, lat) + '  精度 25m' + altTxt;
       renderFavs();
       toast('\\u2713 坐标已写入设备，下次定位生效');
       setTimeout(() => { btn.textContent='锁定到此位置'; btn.className='btn btn-primary primary-action'; btn.disabled=false; }, 2500);
@@ -687,7 +698,7 @@ async function parseUrl() {
     const parsedLon = parseFloat(d.lon);
     if (r.ok && Number.isFinite(parsedLat) && Number.isFinite(parsedLon) && Math.abs(parsedLat) <= 90 && Math.abs(parsedLon) <= 180) {
       moveTo(parsedLat, parsedLon, 15, d.name || '已导入位置');
-      toast((d.name ? d.name + ' · ' : '已解析: ') + parsedLon.toFixed(4) + ', ' + parsedLat.toFixed(4));
+      toast((d.name ? d.name + ' · ' : '已解析: ') + formatDms(parsedLon) + ', ' + formatDms(parsedLat));
       return;
     }
     apiError = d && d.error ? String(d.error) : ('HTTP ' + r.status);
@@ -702,7 +713,7 @@ async function parseUrl() {
     return;
   }
   moveTo(result.lat, result.lon, 15, '已导入位置');
-  toast('已解析: ' + result.lon.toFixed(4) + ', ' + result.lat.toFixed(4));
+  toast('已解析: ' + formatDms(result.lon) + ', ' + formatDms(result.lat));
 }
 
 async function searchPlace() {
@@ -744,7 +755,7 @@ function renderSearchResults() {
     name.textContent = place.name;
     const address = document.createElement('span');
     address.className = 'search-result-address';
-    address.textContent = place.address || place.type || (place.lon.toFixed(6) + ', ' + place.lat.toFixed(6));
+    address.textContent = place.address || place.type || (formatDms(place.lon) + ', ' + formatDms(place.lat));
     item.append(name, address);
     list.appendChild(item);
   });
