@@ -108,7 +108,7 @@ app.get("/api/search", async (c) => {
   }
 });
 
-// 地图链接解析: 供快捷指令调用。
+// 地图链接解析：供网页和外部客户端调用。
 // GET /api/parse?u=<链接>&format=json&cs=<gcj|none>
 //   返回 {lat, lon, name}; 高德/苹果地图(中国大陆均为 GCJ-02)自动转 WGS84; 境外坐标自动跳过(out_of_china)。cs=none 可强制不转换。
 //   不带 format=json 时返回纯文本 "lat=..&lon=.." 片段。
