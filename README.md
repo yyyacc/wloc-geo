@@ -19,8 +19,6 @@ Worker 不保存用户选择的坐标；坐标保存在代理软件的本地持�
 
 ## 模块订阅
 
-> 以下 Raw 链接仅在本仓库公开后才能访问。请只启用一套 WLOC 模块，避免旧模块或重复规则同时命中。
-
 | 工具 | 订阅链接 |
 |------|----------|
 | Surge | `https://raw.githubusercontent.com/yyyacc/wloc-geo/refs/heads/main/modules/wloc.sgmodule` |
@@ -40,7 +38,7 @@ MITM 主机名：`gs-loc.apple.com, gs-loc-cn.apple.com`。使用前需要在代
 
 ## 使用方法
 
-1. 根据代理软件导入上方对应模块，并确认旧版 WLOC 模块已经停用或删除。
+1. 根据代理软件导入上方对应模块。
 2. 在 Safari 中打开自己部署的 Worker 地址，建议将页面添加到主屏幕。
 3. 通过以下任一方式选择目标位置：
    - 单击或拖动地图标记；
@@ -61,8 +59,6 @@ MITM 主机名：`gs-loc.apple.com, gs-loc-cn.apple.com`。使用前需要在代
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/yyyacc/wloc-geo/tree/main/worker)
 
-一键部署要求本 GitHub 仓库处于公开状态。部署完成后，仍需按照下文在 Cloudflare Dashboard 中手动配置所需的高德变量与密钥。
-
 使用 Cloudflare Git 集成时设置：
 
 | 配置项 | 值 |
@@ -79,11 +75,7 @@ MITM 主机名：`gs-loc.apple.com, gs-loc-cn.apple.com`。使用前需要在代
 | `AMAP_JS_KEY` | 高德 Web 端（JS API）Key | Variable | 加载官方高德地图；该值会发送到浏览器，不应视为服务端秘密 |
 | `AMAP_SECURITY_CODE` | JS API 安全密钥 | Secret | 由 `/_AMapService/*` 同源代理使用，不发送到浏览器 |
 
-`AMAP_KEY` 与 `AMAP_JS_KEY` 属于不同服务类型，不能混用：
-
-- 地点搜索需要 `AMAP_KEY`；
-- 官方高德地图需要 `AMAP_JS_KEY` 和 `AMAP_SECURITY_CODE`；
-- 未配置高德相关变量时，卫星和彩色地图、海拔查询、链接解析及坐标保存仍可使用。
+未配置高德相关变量时，卫星和彩色地图、海拔查询、链接解析及坐标保存仍可使用。
 
 `worker/wrangler.jsonc` 中默认 Worker 名称为 `wloc-geo`。如果 Cloudflare Dashboard 中已有 Worker 使用其他名称，请将配置文件中的 `name` 改成对应名称。
 
@@ -115,19 +107,15 @@ npm run deploy                 # 正式部署
 - 模块参数 `altitude` 留空：不修改海拔；网页保存的有效海拔优先于模块参数。
 - 真机测试确认 `field5` 使用厘米单位；网页可单独设置海拔补偿，默认 `0m`，当前按 `field5 = (目标海拔 + 海拔补偿) × 100` 写入补偿后的厘米值。
 
-修改后请重新导入当前模块并刷新脚本缓存。不同代理软件的缓存策略可能不同，必要时请在软件内手动清除脚本缓存。
-
 ## 故障排查
 
 ### 页面无法保存设置
 
 依次确认：
 
-1. 当前只启用了一套 WLOC 模块；
-2. MITM 已开启，并已安装、信任 CA 证书；
-3. MITM 主机名包含 `gs-loc.apple.com` 和 `gs-loc-cn.apple.com`；
-4. Safari 请求经过当前代理软件；
-5. 模块引用的 `dist/wloc-settings.js` 可以公开访问。
+1. MITM 已开启，并已安装、信任 CA 证书；
+2. MITM 主机名包含 `gs-loc.apple.com` 和 `gs-loc-cn.apple.com`；
+3. Safari 请求经过当前代理软件。
 
 ### 坐标或海拔没有生效
 
