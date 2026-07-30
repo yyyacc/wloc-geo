@@ -2,6 +2,13 @@
 // 高德为 GCJ-02; 苹果地图在中国大陆同为 GCJ-02。两者都转 WGS84 再喂给 wloc;
 // gcj02ToWgs84 内含 out_of_china 判断, 境外坐标原样返回(无操作)。
 
+import {
+  coordinateSystemForSource,
+  inferCoordinateSource,
+} from "./coordinates.js";
+
+export { gcj02ToWgs84, wgs84ToGcj02 } from "./coordinates.js";
+
 export function safeDecode(s) {
   if (!s) return "";
   try {
@@ -14,27 +21,67 @@ export function safeDecode(s) {
 // 从一段字符串里提取经纬度+名称。兼容:
 //  苹果地图 coordinate=/ll=/sll=纬度,经度  (名称在 name=...)
 //  高德 ?p=POIID,纬度,经度,名称,城市  (逗号或 %2C)
-//  高德 ?q=纬度,经度,名称           (新版分享链, 逗号或 %2C)
+//  高德 ?q=纬度,经度,名称 或 lnglat=经度,纬度
+//  Google @纬度,经度 / q=纬度,经度
 //  纯文本 纬度,经度
 export function extractFromString(s) {
   if (!s) return null;
   const str = String(s);
+  const inferredSource = inferCoordinateSource(str);
+  const makePoint = (lat, lon, name = "", source = inferredSource) => {
+    lat = Number(lat);
+    lon = Number(lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+    return {
+      lat,
+      lon,
+      name,
+      src: source,
+      coordinateSystem: coordinateSystemForSource(source),
+    };
+  };
   let m;
-  m = str.match(/(?:coordinate|ll|sll)=(-?\d{1,3}\.\d+)(?:,|%2C)(-?\d{1,3}\.\d+)/i);
+
+  m = str.match(/(?:coordinate|sll)=(-?\d{1,3}\.\d+)(?:,|%2C)(-?\d{1,3}\.\d+)/i);
   if (m) {
     const nm = str.match(/[?&]name=([^&]+)/i);
-    return { lat: +m[1], lon: +m[2], name: nm ? safeDecode(nm[1]) : "", src: "apple" };
+    return makePoint(m[1], m[2], nm ? safeDecode(nm[1]) : "", "apple");
+  }
+  m = str.match(/(?:^|[?&])ll=(-?\d{1,3}\.\d+)(?:,|%2C)(-?\d{1,3}\.\d+)/i);
+  if (m) {
+    const nm = str.match(/[?&]name=([^&]+)/i);
+    return makePoint(m[1], m[2], nm ? safeDecode(nm[1]) : "", inferredSource);
   }
   m = str.match(
     /[?&]p=[^,&%]*(?:,|%2C)(-?\d{1,3}\.\d+)(?:,|%2C)(-?\d{1,3}\.\d+)(?:(?:,|%2C)((?:(?!,|%2C|&).)+))?/i
   );
-  if (m) return { lat: +m[1], lon: +m[2], name: m[3] ? safeDecode(m[3]) : "", src: "amap" };
-  m = str.match(
-    /[?&]q=(-?\d{1,3}\.\d+)(?:,|%2C)(-?\d{1,3}\.\d+)(?:(?:,|%2C)((?:(?!,|%2C|&).)+))?/i
-  );
-  if (m) return { lat: +m[1], lon: +m[2], name: m[3] ? safeDecode(m[3]) : "", src: "amap" };
+  if (m) return makePoint(m[1], m[2], m[3] ? safeDecode(m[3]) : "", "amap");
+  if (inferredSource === "amap") {
+    m = str.match(
+      /[?&]q=(-?\d{1,3}\.\d+)(?:,|%2C)(-?\d{1,3}\.\d+)(?:(?:,|%2C)((?:(?!,|%2C|&).)+))?/i
+    );
+    if (m) return makePoint(m[1], m[2], m[3] ? safeDecode(m[3]) : "", "amap");
+  }
+  m = str.match(/(?:^|[?&])lnglat=(-?\d{1,3}\.\d+)(?:,|%2C)(-?\d{1,3}\.\d+)/i);
+  if (m) return makePoint(m[2], m[1], "", "amap");
+  m = str.match(/@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/);
+  if (m) return makePoint(m[1], m[2]);
+  m = str.match(/(?:^|[?&])(?:location|center)=(-?\d{1,3}\.\d+)(?:,|%2C)(-?\d{1,3}\.\d+)/i);
+  if (m) {
+    return inferredSource === "amap"
+      ? makePoint(m[2], m[1], "", "amap")
+      : makePoint(m[1], m[2]);
+  }
   m = str.match(/(-?\d{1,3}\.\d{4,})\s*(?:,|%2C)\s*(-?\d{1,3}\.\d{4,})/);
-  if (m) return { lat: +m[1], lon: +m[2], name: "", src: "text" };
+  if (m) {
+    const first = Number(m[1]);
+    const second = Number(m[2]);
+    if (Math.abs(first) > 90 && Math.abs(second) <= 90) {
+      return makePoint(second, first);
+    }
+    return makePoint(first, second);
+  }
   return null;
 }
 
@@ -101,59 +148,4 @@ export async function parseCoords(raw) {
 
 export function round6(n) {
   return Math.round(Number(n) * 1e6) / 1e6;
-}
-
-const GCJ_A = 6378245.0;
-const GCJ_EE = 0.00669342162296594323;
-
-function gcjOutOfChina(lng, la) {
-  return lng < 72.004 || lng > 137.8347 || la < 0.8293 || la > 55.8271;
-}
-
-function gcjDeltaLat(x, y) {
-  let r = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
-  r += ((20.0 * Math.sin(6.0 * x * Math.PI) + 20.0 * Math.sin(2.0 * x * Math.PI)) * 2.0) / 3.0;
-  r += ((20.0 * Math.sin(y * Math.PI) + 40.0 * Math.sin((y / 3.0) * Math.PI)) * 2.0) / 3.0;
-  r += ((160.0 * Math.sin((y / 12.0) * Math.PI) + 320 * Math.sin((y * Math.PI) / 30.0)) * 2.0) / 3.0;
-  return r;
-}
-
-function gcjDeltaLon(x, y) {
-  let r = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
-  r += ((20.0 * Math.sin(6.0 * x * Math.PI) + 20.0 * Math.sin(2.0 * x * Math.PI)) * 2.0) / 3.0;
-  r += ((20.0 * Math.sin(x * Math.PI) + 40.0 * Math.sin((x / 3.0) * Math.PI)) * 2.0) / 3.0;
-  r += ((150.0 * Math.sin((x / 12.0) * Math.PI) + 300.0 * Math.sin((x / 30.0) * Math.PI)) * 2.0) / 3.0;
-  return r;
-}
-
-// WGS84 -> GCJ-02 (正向偏移), 与高德/苹果中国所用偏移一致。
-export function wgs84ToGcj02(lat, lon) {
-  if (gcjOutOfChina(lon, lat)) return { lat, lon };
-  let dLat = gcjDeltaLat(lon - 105.0, lat - 35.0);
-  let dLon = gcjDeltaLon(lon - 105.0, lat - 35.0);
-  const radLat = (lat / 180.0) * Math.PI;
-  let magic = Math.sin(radLat);
-  magic = 1 - GCJ_EE * magic * magic;
-  const sqrtMagic = Math.sqrt(magic);
-  dLat = (dLat * 180.0) / (((GCJ_A * (1 - GCJ_EE)) / (magic * sqrtMagic)) * Math.PI);
-  dLon = (dLon * 180.0) / ((GCJ_A / sqrtMagic) * Math.cos(radLat) * Math.PI);
-  return { lat: lat + dLat, lon: lon + dLon };
-}
-
-// GCJ-02 -> WGS84 (迭代反算, 亚米级)。
-// 单程反算在偏移梯度大的地区会残留 1~2m, 这里用不动点迭代收敛到 <0.1m,
-// 与高德自身的 WGS84->GCJ 逆运算严格对齐, 消除回看时的残差。
-export function gcj02ToWgs84(lat, lon) {
-  if (gcjOutOfChina(lon, lat)) return { lat, lon };
-  let wgsLat = lat;
-  let wgsLon = lon;
-  for (let i = 0; i < 6; i++) {
-    const g = wgs84ToGcj02(wgsLat, wgsLon);
-    const errLat = g.lat - lat;
-    const errLon = g.lon - lon;
-    if (Math.abs(errLat) < 1e-9 && Math.abs(errLon) < 1e-9) break;
-    wgsLat -= errLat;
-    wgsLon -= errLon;
-  }
-  return { lat: wgsLat, lon: wgsLon };
 }

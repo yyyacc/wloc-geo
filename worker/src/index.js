@@ -117,8 +117,8 @@ app.get("/api/parse", async (c) => {
   const cs = (c.req.query("cs") || "").toLowerCase();
   const fmt = (c.req.query("format") || "").toLowerCase();
   try {
-    let { lat, lon, name, src } = await parseCoords(raw);
-    const needConv = cs === "gcj" || (cs !== "none" && (src === "amap" || src === "apple"));
+    let { lat, lon, name, coordinateSystem } = await parseCoords(raw);
+    const needConv = cs === "gcj" || (cs !== "none" && coordinateSystem === "gcj02");
     if (needConv) ({ lat, lon } = gcj02ToWgs84(lat, lon));
     lat = round6(lat);
     lon = round6(lon);
@@ -150,9 +150,9 @@ app.get("/api/geo", async (c) => {
     let lon;
     let name = "";
     if (raw) {
-      let src;
-      ({ lat, lon, name, src } = await parseCoords(raw));
-      const needConv = cs === "gcj" || (cs !== "none" && (src === "amap" || src === "apple"));
+      let coordinateSystem;
+      ({ lat, lon, name, coordinateSystem } = await parseCoords(raw));
+      const needConv = cs === "gcj" || (cs !== "none" && coordinateSystem === "gcj02");
       if (needConv) ({ lat, lon } = gcj02ToWgs84(lat, lon));
     } else if (latQ != null && lonQ != null) {
       lat = parseFloat(latQ);

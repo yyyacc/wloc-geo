@@ -1,3 +1,5 @@
+import { getClientCoordinateHelpersSource } from "./coordinates.js";
+
 export function getPageHtml(options = {}) {
   const amapJsKey = String(options.amapJsKey || "");
   const amapScript = amapJsKey
@@ -248,6 +250,7 @@ button { -webkit-tap-highlight-color:transparent; }
   </div>
 </div>
 <script>
+${getClientCoordinateHelpersSource()}
 const SAVE_API = 'https://gs-loc.apple.com/wloc-settings/save';
 const GEO_API = location.origin + '/api/geo';
 const PARSE_API = location.origin + '/api/parse';
@@ -275,47 +278,6 @@ currentLayer.addTo(map);
 let marker = L.marker([lat, lon], {draggable:true, icon:pinIcon}).addTo(map);
 let amapMap = null;
 let amapMarker = null;
-
-const GCJ_A = 6378245.0;
-const GCJ_EE = 0.00669342162296594323;
-function gcjOutOfChina(lng, la) { return lng < 72.004 || lng > 137.8347 || la < 0.8293 || la > 55.8271; }
-function gcjDeltaLat(x, y) {
-  let r = -100 + 2*x + 3*y + .2*y*y + .1*x*y + .2*Math.sqrt(Math.abs(x));
-  r += ((20*Math.sin(6*x*Math.PI) + 20*Math.sin(2*x*Math.PI))*2)/3;
-  r += ((20*Math.sin(y*Math.PI) + 40*Math.sin(y/3*Math.PI))*2)/3;
-  r += ((160*Math.sin(y/12*Math.PI) + 320*Math.sin(y*Math.PI/30))*2)/3;
-  return r;
-}
-function gcjDeltaLon(x, y) {
-  let r = 300 + x + 2*y + .1*x*x + .1*x*y + .1*Math.sqrt(Math.abs(x));
-  r += ((20*Math.sin(6*x*Math.PI) + 20*Math.sin(2*x*Math.PI))*2)/3;
-  r += ((20*Math.sin(x*Math.PI) + 40*Math.sin(x/3*Math.PI))*2)/3;
-  r += ((150*Math.sin(x/12*Math.PI) + 300*Math.sin(x/30*Math.PI))*2)/3;
-  return r;
-}
-function wgs84ToGcj02(la, lo) {
-  if (gcjOutOfChina(lo, la)) return {lat:la, lon:lo};
-  let dLat = gcjDeltaLat(lo - 105, la - 35);
-  let dLon = gcjDeltaLon(lo - 105, la - 35);
-  const radLat = la / 180 * Math.PI;
-  let magic = Math.sin(radLat);
-  magic = 1 - GCJ_EE * magic * magic;
-  const sqrtMagic = Math.sqrt(magic);
-  dLat = dLat * 180 / ((GCJ_A * (1-GCJ_EE) / (magic*sqrtMagic)) * Math.PI);
-  dLon = dLon * 180 / ((GCJ_A / sqrtMagic * Math.cos(radLat)) * Math.PI);
-  return {lat:la+dLat, lon:lo+dLon};
-}
-function gcj02ToWgs84(la, lo) {
-  if (gcjOutOfChina(lo, la)) return {lat:la, lon:lo};
-  let wgsLat = la, wgsLon = lo;
-  for (let i=0; i<6; i++) {
-    const g = wgs84ToGcj02(wgsLat, wgsLon);
-    const errLat = g.lat - la, errLon = g.lon - lo;
-    if (Math.abs(errLat) < 1e-9 && Math.abs(errLon) < 1e-9) break;
-    wgsLat -= errLat; wgsLon -= errLon;
-  }
-  return {lat:wgsLat, lon:wgsLon};
-}
 
 if (window.AMap) {
   const initialGcj = wgs84ToGcj02(lat, lon);
@@ -673,20 +635,25 @@ function locateMe() {
 
 function parseMapUrl(text) {
   let m;
+  const coordinateSystem = inferCoordinateSystem(text);
   m = text.match(/ll=([0-9.-]+),([0-9.-]+)/);
-  if (m) return { lat: parseFloat(m[1]), lon: parseFloat(m[2]) };
+  if (m) return { lat: parseFloat(m[1]), lon: parseFloat(m[2]), coordinateSystem };
   m = text.match(/@([0-9.-]+),([0-9.-]+)/);
-  if (m) return { lat: parseFloat(m[1]), lon: parseFloat(m[2]) };
+  if (m) return { lat: parseFloat(m[1]), lon: parseFloat(m[2]), coordinateSystem };
   m = text.match(/lnglat=([0-9.-]+),([0-9.-]+)/);
-  if (m) return { lat: parseFloat(m[2]), lon: parseFloat(m[1]) };
+  if (m) return { lat: parseFloat(m[2]), lon: parseFloat(m[1]), coordinateSystem };
   m = text.match(/(?:location|center)=([0-9.-]+),([0-9.-]+)/);
-  if (m) return { lat: parseFloat(m[2]), lon: parseFloat(m[1]) };
+  if (m) {
+    return coordinateSystem === 'gcj02'
+      ? { lat: parseFloat(m[2]), lon: parseFloat(m[1]), coordinateSystem }
+      : { lat: parseFloat(m[1]), lon: parseFloat(m[2]), coordinateSystem };
+  }
   m = text.match(/([0-9]+\\.[0-9]+)[,\\s]+([0-9]+\\.[0-9]+)/);
   if (m) {
     const a = parseFloat(m[1]), b = parseFloat(m[2]);
-    if (a < 90 && b > 90) return { lat: a, lon: b };
-    if (b < 90 && a > 90) return { lat: b, lon: a };
-    return { lat: a, lon: b };
+    if (a < 90 && b > 90) return { lat: a, lon: b, coordinateSystem };
+    if (b < 90 && a > 90) return { lat: b, lon: a, coordinateSystem };
+    return { lat: a, lon: b, coordinateSystem };
   }
   return null;
 }
@@ -714,8 +681,8 @@ async function parseUrl() {
     apiError = e && e.message ? e.message : 'Worker 请求失败';
   }
 
-  // Worker 无法识别时，回退到浏览器内的 Google/普通坐标格式解析。
-  const result = parseMapUrl(input);
+  // Worker 无法识别时，浏览器回退路径仍按链接来源统一为 WGS84。
+  const result = normalizeToWgs84(parseMapUrl(input));
   if (!result || !Number.isFinite(result.lat) || !Number.isFinite(result.lon) || Math.abs(result.lat) > 90) {
     toast('解析失败: ' + (apiError || '请检查链接格式'), 4500);
     return;
