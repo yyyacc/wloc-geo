@@ -50,10 +50,13 @@ app.all("/_AMapService/*", async (c) => {
 });
 
 // 地点搜索: 由 Worker 代调用高德 Web 服务，AMAP_KEY 不会下发到浏览器。
-// 当前地图中心用于结果排序；高德返回 GCJ-02，统一转换为地图使用的 WGS84。
+// 普通搜索按当前坐标排序，周边搜索固定在当前坐标 2 km 内；返回坐标统一为 WGS84。
 app.get("/api/search", async (c) => {
   c.header("Cache-Control", "no-store");
   try {
+    const mode = (c.req.query("mode") || "text").toLowerCase();
+    if (mode !== "text" && mode !== "around") return c.json({ error: "无效的搜索模式" }, 400);
+
     const keywords = (c.req.query("q") || "").trim();
     if (!keywords) return c.json({ error: "缺少搜索关键词" }, 400);
     if (keywords.length > 80) return c.json({ error: "搜索关键词过长" }, 400);
@@ -72,13 +75,21 @@ app.get("/api/search", async (c) => {
     const centerLonRaw = c.req.query("lon");
     const centerLat = Number(centerLatRaw);
     const centerLon = Number(centerLonRaw);
-    if (centerLatRaw != null && centerLonRaw != null && Number.isFinite(centerLat) && Number.isFinite(centerLon) && Math.abs(centerLat) <= 90 && Math.abs(centerLon) <= 180) {
+    const hasValidCenter = centerLatRaw != null && centerLonRaw != null
+      && centerLatRaw.trim() !== "" && centerLonRaw.trim() !== ""
+      && Number.isFinite(centerLat) && Number.isFinite(centerLon)
+      && Math.abs(centerLat) <= 90 && Math.abs(centerLon) <= 180;
+    if (mode === "around" && !hasValidCenter) {
+      return c.json({ error: "周边搜索需要有效的中心坐标" }, 400);
+    }
+    if (hasValidCenter) {
       const center = wgs84ToGcj02(centerLat, centerLon);
       params.set("location", `${center.lon},${center.lat}`);
       params.set("sortrule", "distance");
     }
+    if (mode === "around") params.set("radius", "2000");
 
-    const response = await fetch(`https://restapi.amap.com/v3/place/text?${params}`, {
+    const response = await fetch(`https://restapi.amap.com/v3/place/${mode}?${params}`, {
       headers: { accept: "application/json" },
     });
     if (!response.ok) throw new Error(`高德搜索 HTTP ${response.status}`);

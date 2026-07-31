@@ -95,10 +95,12 @@ npm run deploy                 # 正式部署
 | `GET /api/parse?u=...&format=json` | 解析地图链接或坐标；中国大陆 Apple/高德坐标自动由 GCJ-02 转为 WGS84 |
 | `GET /api/geo?lat=...&lon=...&format=json` | 查询地面海拔；优先使用 Open-Meteo，失败时回退到 OpenTopoData |
 | `GET /api/geo?lat=...&lon=...&alt=123&format=json` | 使用调用方给出的海拔，不查询外部高程服务 |
-| `GET /api/search?q=...&lat=...&lon=...` | 使用高德 Web 服务搜索地点，最多返回 12 条 WGS84 结果 |
+| `GET /api/search?mode=text&q=...&lat=...&lon=...` | 使用高德 Web 服务搜索地点，最多返回 12 条 WGS84 结果 |
+| `GET /api/search?mode=around&q=...&lat=...&lon=...` | 以给定坐标为中心搜索周边 2 km，最多返回 12 条 WGS84 结果 |
 | `/_AMapService/*` | 高德 JS API 的同源安全代理，供页面内部使用 |
 
 `/api/search` 和 `/_AMapService/*` 会消耗高德服务额度。如果公开分享自己部署的 Worker 地址，建议同时配置 Cloudflare Rate Limiting/WAF、高德配额告警和适当的 Key 使用限制。浏览器的 CORS 或 `Origin` 检查不能替代服务端限流与访问控制。
+`/api/search` 省略 `mode` 时仍按普通地点搜索处理，以兼容现有调用方。
 
 ## 海拔说明
 

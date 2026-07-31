@@ -32,7 +32,14 @@ button { -webkit-tap-highlight-color:transparent; }
 .glass { background:var(--glass); border:1px solid var(--line); box-shadow:0 14px 36px rgba(18,39,64,.18), inset 0 1px 0 rgba(255,255,255,.72); backdrop-filter:blur(24px) saturate(165%); -webkit-backdrop-filter:blur(24px) saturate(165%); }
 .top-stack { position:absolute; z-index:1200; top:max(14px,env(safe-area-inset-top)); left:14px; right:14px; max-width:520px; }
 .search-bar { height:56px; display:flex; align-items:center; gap:10px; padding:7px 8px 7px 16px; border-radius:22px; }
-.search-icon { width:18px; height:18px; flex:none; color:#5e6877; }
+.search-mode-button { width:34px; height:40px; flex:none; display:grid; place-items:center; border:0; border-radius:12px; background:transparent; color:#5e6877; cursor:pointer; transition:.16s ease; }
+.search-mode-button svg { width:18px; height:18px; }
+.search-mode-button .around-icon { display:none; }
+.search-mode-button.active .text-icon { display:none; }
+.search-mode-button.active .around-icon { display:block; }
+.search-mode-button.active { color:#fff; background:rgba(10,102,255,.9); box-shadow:0 4px 12px rgba(10,102,255,.22); }
+.search-mode-button:active { transform:scale(.94); }
+.search-mode-button:focus-visible { outline:2px solid var(--blue); outline-offset:2px; }
 .search-bar input { flex:1; min-width:0; height:40px; border:0; outline:0; background:transparent; color:var(--ink); font-size:16px; font-weight:500; }
 .search-bar input::placeholder { color:#737d8c; }
 .search-button { height:40px; min-width:66px; padding:0 16px; border:0; border-radius:15px; color:#fff; background:rgba(10,102,255,.9); font-size:14px; font-weight:700; cursor:pointer; box-shadow:0 6px 16px rgba(10,102,255,.25); }
@@ -141,7 +148,10 @@ button { -webkit-tap-highlight-color:transparent; }
 
   <div class="top-stack">
     <div class="search-bar glass">
-      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
+      <button class="search-mode-button" id="searchModeBtn" type="button" onclick="toggleSearchMode()" aria-label="切换到周边 2 公里搜索" aria-pressed="false" title="切换到周边 2 公里搜索">
+        <svg class="text-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
+        <svg class="around-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="7"></circle><circle cx="12" cy="12" r="2.5"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path></svg>
+      </button>
       <input id="searchInput" placeholder="搜索地名或地址" autocomplete="off" />
       <button class="search-button" id="searchBtn" onclick="searchPlace()">搜索</button>
     </div>
@@ -260,6 +270,7 @@ let lat = 22.544577, lon = 113.94114;
 let selected = false;
 let activeLon = null, activeLat = null;
 let placeResults = [];
+let searchMode = 'text';
 
 const map = L.map('map', {zoomControl:false, worldCopyJump:true, maxBounds:[[-90,-180],[90,180]], maxBoundsViscosity:1.0}).setView([lat, lon], 13);
 const tiles = {
@@ -699,7 +710,7 @@ async function searchPlace() {
   button.textContent = '搜索中';
   toast('搜索中...');
   try {
-    const url = SEARCH_API + '?q=' + encodeURIComponent(q) + '&lat=' + lat + '&lon=' + lon;
+    const url = SEARCH_API + '?mode=' + searchMode + '&q=' + encodeURIComponent(q) + '&lat=' + lat + '&lon=' + lon;
     const r = await fetch(url, { cache:'no-store' });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
@@ -714,6 +725,21 @@ async function searchPlace() {
     button.disabled = false;
     button.textContent = '搜索';
   }
+}
+
+function toggleSearchMode() {
+  searchMode = searchMode === 'text' ? 'around' : 'text';
+  const around = searchMode === 'around';
+  const modeButton = document.getElementById('searchModeBtn');
+  const nextModeLabel = around ? '切换到普通搜索' : '切换到周边 2 公里搜索';
+  modeButton.classList.toggle('active', around);
+  modeButton.setAttribute('aria-pressed', String(around));
+  modeButton.setAttribute('aria-label', nextModeLabel);
+  modeButton.title = nextModeLabel;
+  document.getElementById('searchInput').placeholder = around ? '搜索选定位置周边 2 km' : '搜索地名或地址';
+  placeResults = [];
+  renderSearchResults();
+  toast(around ? '已切换到周边 2 km 搜索' : '已切换到普通搜索', 2500);
 }
 
 function renderSearchResults() {

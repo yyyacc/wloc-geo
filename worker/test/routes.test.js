@@ -54,3 +54,65 @@ test("/api/geo converts link coordinates before using an explicit altitude", asy
     name: "",
   });
 });
+
+test("/api/search uses Amap around search with a fixed 2 km radius", async (t) => {
+  let upstreamUrl;
+  t.mock.method(globalThis, "fetch", async (input) => {
+    upstreamUrl = new URL(input);
+    return Response.json({
+      status: "1",
+      pois: [{ id: "poi-1", name: "咖啡店", location: "116.403743,39.910126", address: "测试路" }],
+    });
+  });
+
+  const response = await app.request(
+    "https://worker.test/api/search?mode=around&q=" + encodeURIComponent("咖啡") + "&lat=39.908722&lon=116.397499",
+    undefined,
+    { AMAP_KEY: "test-key" }
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(upstreamUrl.pathname, "/v3/place/around");
+  assert.equal(upstreamUrl.searchParams.get("radius"), "2000");
+  assert.equal(upstreamUrl.searchParams.get("sortrule"), "distance");
+  assert.match(upstreamUrl.searchParams.get("location"), /^116\.4037\d+,39\.9101\d+$/);
+  assert.deepEqual(await response.json(), {
+    results: [{
+      id: "poi-1",
+      name: "咖啡店",
+      address: "测试路",
+      type: "",
+      lat: 39.908722,
+      lon: 116.397499,
+    }],
+  });
+});
+
+test("/api/search keeps text search as the default mode", async (t) => {
+  let upstreamUrl;
+  t.mock.method(globalThis, "fetch", async (input) => {
+    upstreamUrl = new URL(input);
+    return Response.json({ status: "1", pois: [] });
+  });
+
+  const response = await app.request(
+    "https://worker.test/api/search?q=test&lat=22.544577&lon=113.94114",
+    undefined,
+    { AMAP_KEY: "test-key" }
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(upstreamUrl.pathname, "/v3/place/text");
+  assert.equal(upstreamUrl.searchParams.has("radius"), false);
+});
+
+test("/api/search rejects around search without a valid center", async () => {
+  const response = await app.request(
+    "https://worker.test/api/search?mode=around&q=test&lat=invalid&lon=113.94114",
+    undefined,
+    { AMAP_KEY: "test-key" }
+  );
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { error: "周边搜索需要有效的中心坐标" });
+});
