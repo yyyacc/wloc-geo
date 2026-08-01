@@ -65,7 +65,8 @@ button { -webkit-tap-highlight-color:transparent; }
 .bottom-sheet::-webkit-scrollbar { display:none; }
 .bottom-sheet.is-dragging { transition:none; overflow:hidden; user-select:none; }
 .bottom-sheet.is-collapsed { overflow:hidden; }
-.sheet-handle { display:block; width:64px; height:17px; margin:-2px auto 3px; padding:0; border:0; background:transparent; cursor:ns-resize; touch-action:none; }
+.bottom-sheet.is-collapsed > :not(.sheet-handle):not(.selection-head) { visibility:hidden; pointer-events:none; }
+.sheet-handle { position:sticky; top:0; z-index:2; display:block; width:64px; height:17px; margin:-2px auto 3px; padding:0; border:0; background:transparent; cursor:ns-resize; touch-action:none; }
 .sheet-handle::after { content:""; display:block; width:38px; height:5px; margin:auto; border-radius:99px; background:rgba(55,65,81,.24); }
 .selection-head { display:grid; grid-template-columns:1fr auto; gap:2px 12px; align-items:start; }
 .selection-head.no-title { gap:8px 12px; }
@@ -827,6 +828,7 @@ function measureExpandedSheetHeight() {
 function setSheetExpanded(expanded) {
   const targetHeight = expanded ? measureExpandedSheetHeight() : COLLAPSED_SHEET_HEIGHT;
   sheetExpanded = expanded;
+  if (!expanded) bottomSheet.scrollTop = 0;
   bottomSheet.classList.toggle('is-collapsed', !expanded);
   bottomSheet.style.height = targetHeight + 'px';
   sheetHandle.setAttribute('aria-expanded', expanded ? 'true' : 'false');

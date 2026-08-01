@@ -86,6 +86,8 @@ test("generated page uses shared helpers and contains valid inline JavaScript", 
   assert.match(html, /<h1 id="selectionTitle"><\/h1>/);
   assert.match(html, /<div class="status" id="status"><\/div>/);
   assert.match(html, /\.status:empty \{ display:none; \}/);
+  assert.match(html, /\.bottom-sheet\.is-collapsed > :not\(\.sheet-handle\):not\(\.selection-head\)/);
+  assert.match(html, /if \(!expanded\) bottomSheet\.scrollTop = 0/);
   assert.match(html, /setSheetExpanded\(sheetExpanded\)/);
   assert.match(html, /clearTimeout\(toastTimer\)/);
   assert.equal(html.includes("toast('搜索中...')"), false);
