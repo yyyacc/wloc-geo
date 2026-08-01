@@ -65,7 +65,7 @@ button { -webkit-tap-highlight-color:transparent; }
 .bottom-sheet::-webkit-scrollbar { display:none; }
 .bottom-sheet.is-dragging { transition:none; overflow:hidden; user-select:none; }
 .bottom-sheet.is-collapsed { overflow:hidden; }
-.bottom-sheet.is-collapsed > :not(.sheet-handle):not(.selection-head) { visibility:hidden; pointer-events:none; }
+.bottom-sheet.is-collapsed > :not(.sheet-handle):not(.selection-head) { display:none; }
 .sheet-handle { position:sticky; top:0; z-index:2; display:block; width:64px; height:17px; margin:-2px auto 3px; padding:0; border:0; background:transparent; cursor:ns-resize; touch-action:none; }
 .sheet-handle::after { content:""; display:block; width:38px; height:5px; margin:auto; border-radius:99px; background:rgba(55,65,81,.24); }
 .selection-head { display:grid; grid-template-columns:1fr auto; gap:2px 12px; align-items:start; }
@@ -107,6 +107,7 @@ button { -webkit-tap-highlight-color:transparent; }
 .status { margin-top:9px; color:var(--gray); font-size:10px; line-height:1.35; text-align:center; }
 .status:empty { display:none; }
 .error-banner { background:rgba(255,69,58,.94); color:#fff; padding:12px 14px; border-radius:10px; margin-bottom:10px; font-size:12px; line-height:1.45; display:none; }
+.error-banner.show { display:block; }
 .error-banner b { display:block; margin-bottom:3px; }
 .active-loc { padding:10px 11px; border-radius:10px; background:rgba(236,241,247,.86); color:#333; font-size:12px; }
 .active-loc .label { color:var(--gray); margin-bottom:4px; font-size:10px; }
@@ -143,6 +144,13 @@ button { -webkit-tap-highlight-color:transparent; }
   .altitude-block { grid-template-columns:1.2fr 1fr; gap:6px; }
   .field input { padding:0 7px; font-size:12px; }
   .tool-tab { font-size:11px; }
+}
+@media(max-width:719px) and (max-height:500px) {
+  .locate-fab { right:176px; }
+  .toast { left:14px; max-width:min(54vw,360px); transform:none; }
+}
+@media(max-width:719px) and (min-height:501px) {
+  .toast { top:calc(max(14px,env(safe-area-inset-top)) + 116px); }
 }
 </style>
 </head>
@@ -279,6 +287,9 @@ let activeLon = null, activeLat = null;
 let placeResults = [];
 let searchMode = 'text';
 let searchState = null;
+let activeQueryToken = 0;
+let parseRequestToken = 0;
+let searchRequestToken = 0;
 
 const map = L.map('map', {zoomControl:false, worldCopyJump:true, maxBounds:[[-90,-180],[90,180]], maxBoundsViscosity:1.0}).setView([lat, lon], 13);
 const tiles = {
@@ -397,7 +408,7 @@ function toast(msg, ms) {
 }
 
 function showError(show) {
-  document.getElementById('errorBanner').style.display = show ? 'block' : 'none';
+  document.getElementById('errorBanner').classList.toggle('show', show);
   if (show) setTimeout(() => setSheetExpanded(true), 0);
 }
 
@@ -504,18 +515,23 @@ function clearAllFav() {
 /* ---- Active location query ---- */
 function queryActive() {
   const el = document.getElementById('activeValue');
+  const token = ++activeQueryToken;
   el.textContent = '查询中...';
   fetch(SAVE_API + '?action=query', { method:'GET', mode:'cors', cache:'no-store' })
     .then(r => r.json())
     .then(d => {
-      if (d.success && d.longitude && d.latitude) {
-        activeLon = parseFloat(d.longitude);
-        activeLat = parseFloat(d.latitude);
+      if (token !== activeQueryToken) return;
+      const queriedLon = d.longitude != null && d.longitude !== '' ? Number(d.longitude) : NaN;
+      const queriedLat = d.latitude != null && d.latitude !== '' ? Number(d.latitude) : NaN;
+      if (d.success && Number.isFinite(queriedLon) && Number.isFinite(queriedLat) && Math.abs(queriedLon) <= 180 && Math.abs(queriedLat) <= 90) {
+        activeLon = queriedLon;
+        activeLat = queriedLat;
         const alt = (d.altitude != null && d.altitude !== '') ? d.altitude : cachedAlt(activeLon, activeLat);
         const altitudeOffset = validNumber(d.altitudeOffset) ? parseFloat(d.altitudeOffset) : 0;
         document.getElementById('altitudeOffsetInput').value = altitudeOffset;
         const altTxt = (alt != null && alt !== '') ? '  海拔 ' + alt + 'm' : '';
-        el.textContent = formatCoords(activeLon, activeLat) + (d.accuracy ? '  精度 ' + d.accuracy + 'm' : '') + altTxt + formatOffset(altitudeOffset);
+        const accuracyTxt = validNumber(d.accuracy) ? '  精度 ' + parseFloat(d.accuracy) + 'm' : '';
+        el.textContent = formatCoords(activeLon, activeLat) + accuracyTxt + altTxt + formatOffset(altitudeOffset);
         renderFavs();
       } else {
         activeLon = null; activeLat = null;
@@ -524,6 +540,7 @@ function queryActive() {
       }
     })
     .catch(() => {
+      if (token !== activeQueryToken) return;
       el.textContent = '查询失败 (需要代理模块支持)';
     });
 }
@@ -542,6 +559,7 @@ function cachedAlt(lo, la) {
 
 function clearActive() {
   if (!confirm('确定清除设备上已保存的坐标？清除后将使用模块默认参数或停止修改定位。')) return;
+  activeQueryToken++;
   fetch(SAVE_API + '?action=clear', { method:'GET', mode:'cors', cache:'no-store' })
     .then(r => r.json())
     .then(d => {
@@ -626,6 +644,7 @@ async function save() {
     });
     const d = await r.json();
     if (d.success) {
+      activeQueryToken++;
       activeLon = lon; activeLat = lat;
       setCachedAlt(lat, lon, (alt != null && !Number.isNaN(alt)) ? alt : null);
       const altTxt = (alt != null && !Number.isNaN(alt)) ? '  海拔 ' + alt + 'm' : '';
@@ -684,6 +703,7 @@ function parseMapUrl(text) {
 
 async function parseUrl() {
   const input = document.getElementById('urlInput').value.trim();
+  const token = ++parseRequestToken;
   if (!input) return toast('请粘贴地图链接或坐标');
   toast('解析中...');
 
@@ -693,6 +713,7 @@ async function parseUrl() {
   try {
     const r = await fetch(PARSE_API + '?format=json&u=' + encodeURIComponent(input), { cache:'no-store' });
     const d = await r.json();
+    if (token !== parseRequestToken) return;
     const parsedLat = parseFloat(d.lat);
     const parsedLon = parseFloat(d.lon);
     if (r.ok && Number.isFinite(parsedLat) && Number.isFinite(parsedLon) && Math.abs(parsedLat) <= 90 && Math.abs(parsedLon) <= 180) {
@@ -702,12 +723,13 @@ async function parseUrl() {
     }
     apiError = d && d.error ? String(d.error) : ('HTTP ' + r.status);
   } catch(e) {
+    if (token !== parseRequestToken) return;
     apiError = e && e.message ? e.message : 'Worker 请求失败';
   }
 
   // Worker 无法识别时，浏览器回退路径仍按链接来源统一为 WGS84。
   const result = normalizeToWgs84(parseMapUrl(input));
-  if (!result || !Number.isFinite(result.lat) || !Number.isFinite(result.lon) || Math.abs(result.lat) > 90) {
+  if (!result || !Number.isFinite(result.lat) || !Number.isFinite(result.lon) || Math.abs(result.lat) > 90 || Math.abs(result.lon) > 180) {
     toast('解析失败: ' + (apiError || '请检查链接格式'), 4500);
     return;
   }
@@ -717,10 +739,14 @@ async function parseUrl() {
 
 async function searchPlace() {
   const q = document.getElementById('searchInput').value.trim();
+  const token = ++searchRequestToken;
   if (!q) {
     placeResults = [];
     searchState = { message:'请输入地名', error:true };
     renderSearchResults();
+    const button = document.getElementById('searchBtn');
+    button.disabled = false;
+    button.textContent = '搜索';
     return;
   }
   const button = document.getElementById('searchBtn');
@@ -733,21 +759,26 @@ async function searchPlace() {
     const url = SEARCH_API + '?mode=' + searchMode + '&q=' + encodeURIComponent(q) + '&lat=' + lat + '&lon=' + lon;
     const r = await fetch(url, { cache:'no-store' });
     const data = await r.json();
+    if (token !== searchRequestToken) return;
     if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
     placeResults = Array.isArray(data.results) ? data.results : [];
     searchState = placeResults.length ? null : { message:'未找到: ' + q, error:false };
     renderSearchResults();
   } catch(e) {
+    if (token !== searchRequestToken) return;
     placeResults = [];
     searchState = { message:'搜索失败: ' + (e && e.message ? e.message : e), error:true };
     renderSearchResults();
   } finally {
-    button.disabled = false;
-    button.textContent = '搜索';
+    if (token === searchRequestToken) {
+      button.disabled = false;
+      button.textContent = '搜索';
+    }
   }
 }
 
 function toggleSearchMode() {
+  searchRequestToken++;
   searchMode = searchMode === 'text' ? 'around' : 'text';
   const around = searchMode === 'around';
   const modeButton = document.getElementById('searchModeBtn');
@@ -760,6 +791,9 @@ function toggleSearchMode() {
   placeResults = [];
   searchState = null;
   renderSearchResults();
+  const button = document.getElementById('searchBtn');
+  button.disabled = false;
+  button.textContent = '搜索';
 }
 
 function renderSearchResults() {
@@ -799,8 +833,11 @@ function selectSearchResult(index) {
 
 document.addEventListener('paste', e => {
   const text = (e.clipboardData||window.clipboardData).getData('text');
+  const target = e.target;
+  const isEditable = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target.isContentEditable;
+  if (isEditable && target.id !== 'urlInput') return;
   if (text && (text.includes('map') || text.includes('loc') || text.includes('lnglat') || /[0-9]+\\.[0-9]+/.test(text))) {
-    document.getElementById('urlInput').value = text;
+    if (target.id !== 'urlInput') document.getElementById('urlInput').value = text;
     setTimeout(parseUrl, 200);
   }
 });
@@ -810,9 +847,22 @@ document.getElementById('favNameInput').addEventListener('keydown', e => { if(e.
 
 const bottomSheet = document.getElementById('bottomSheet');
 const sheetHandle = document.getElementById('sheetHandle');
-const COLLAPSED_SHEET_HEIGHT = 126;
+const selectionHead = document.getElementById('selectionHead');
 let sheetExpanded = true;
 let sheetDrag = null;
+
+function measureCollapsedSheetHeight() {
+  const wasCollapsed = bottomSheet.classList.contains('is-collapsed');
+  const previousScrollTop = bottomSheet.scrollTop;
+  if (!wasCollapsed) bottomSheet.classList.add('is-collapsed');
+  const paddingBottom = parseFloat(getComputedStyle(bottomSheet).paddingBottom) || 0;
+  const height = Math.ceil(selectionHead.offsetTop + selectionHead.offsetHeight + paddingBottom);
+  if (!wasCollapsed) {
+    bottomSheet.classList.remove('is-collapsed');
+    bottomSheet.scrollTop = previousScrollTop;
+  }
+  return height;
+}
 
 function measureExpandedSheetHeight() {
   const previousHeight = bottomSheet.style.height;
@@ -822,28 +872,34 @@ function measureExpandedSheetHeight() {
   const height = bottomSheet.offsetHeight;
   bottomSheet.style.height = previousHeight;
   bottomSheet.style.transition = previousTransition;
-  return Math.max(COLLAPSED_SHEET_HEIGHT, height);
+  return Math.max(measureCollapsedSheetHeight(), height);
 }
 
 function setSheetExpanded(expanded) {
-  const targetHeight = expanded ? measureExpandedSheetHeight() : COLLAPSED_SHEET_HEIGHT;
   sheetExpanded = expanded;
   if (!expanded) bottomSheet.scrollTop = 0;
   bottomSheet.classList.toggle('is-collapsed', !expanded);
+  const targetHeight = expanded ? measureExpandedSheetHeight() : measureCollapsedSheetHeight();
   bottomSheet.style.height = targetHeight + 'px';
   sheetHandle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
 }
 
 sheetHandle.addEventListener('pointerdown', e => {
-  sheetDrag = { startY:e.clientY, startHeight:bottomSheet.offsetHeight, maxHeight:measureExpandedSheetHeight() };
-  bottomSheet.classList.add('is-dragging');
+  const minHeight = measureCollapsedSheetHeight();
   bottomSheet.classList.remove('is-collapsed');
+  sheetDrag = {
+    startY:e.clientY,
+    startHeight:bottomSheet.offsetHeight,
+    minHeight,
+    maxHeight:measureExpandedSheetHeight()
+  };
+  bottomSheet.classList.add('is-dragging');
   sheetHandle.setPointerCapture(e.pointerId);
   e.preventDefault();
 });
 sheetHandle.addEventListener('pointermove', e => {
   if (!sheetDrag) return;
-  const nextHeight = Math.max(COLLAPSED_SHEET_HEIGHT, Math.min(sheetDrag.maxHeight, sheetDrag.startHeight + sheetDrag.startY - e.clientY));
+  const nextHeight = Math.max(sheetDrag.minHeight, Math.min(sheetDrag.maxHeight, sheetDrag.startHeight + sheetDrag.startY - e.clientY));
   bottomSheet.style.height = nextHeight + 'px';
   e.preventDefault();
 });
