@@ -104,6 +104,7 @@ button { -webkit-tap-highlight-color:transparent; }
 .row { display:flex; gap:8px; margin-top:9px; flex-wrap:wrap; }
 .row .btn { flex:1; }
 .status { margin-top:9px; color:var(--gray); font-size:10px; line-height:1.35; text-align:center; }
+.status:empty { display:none; }
 .error-banner { background:rgba(255,69,58,.94); color:#fff; padding:12px 14px; border-radius:10px; margin-bottom:10px; font-size:12px; line-height:1.45; display:none; }
 .error-banner b { display:block; margin-bottom:3px; }
 .active-loc { padding:10px 11px; border-radius:10px; background:rgba(236,241,247,.86); color:#333; font-size:12px; }
@@ -248,7 +249,7 @@ button { -webkit-tap-highlight-color:transparent; }
       </div>
     </section>
 
-    <div class="status" id="status">选择位置后点击「锁定到此位置」写入代理工具</div>
+    <div class="status" id="status"></div>
   </main>
 </div>
 
@@ -630,6 +631,7 @@ async function save() {
       const offsetTxt = formatOffset(altitudeOffset);
       btn.textContent = '\\u2713 已锁定'; btn.className = 'btn btn-primary primary-action success';
       document.getElementById('status').textContent = '\\u2713 已写入: ' + formatCoords(lon, lat) + altTxt + offsetTxt + ' \\u00b7 ' + new Date().toLocaleTimeString('zh-CN');
+      setTimeout(() => setSheetExpanded(sheetExpanded), 0);
       document.getElementById('activeValue').textContent = formatCoords(lon, lat) + '  精度 25m' + altTxt + offsetTxt;
       renderFavs();
       toast('\\u2713 坐标已写入设备，下次定位生效');
