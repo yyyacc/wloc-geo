@@ -61,7 +61,7 @@ button { -webkit-tap-highlight-color:transparent; }
 .locate-fab { position:absolute; z-index:1150; right:18px; bottom:calc(var(--sheet-height,360px) + max(24px,env(safe-area-inset-bottom))); width:52px; height:52px; display:grid; place-items:center; border:1px solid var(--line); border-radius:50%; color:#0c345d; cursor:pointer; }
 .locate-fab svg { width:23px; height:23px; }
 .locate-fab:active { transform:scale(.94); }
-.bottom-sheet { position:absolute; z-index:1100; left:12px; right:12px; bottom:max(10px,env(safe-area-inset-bottom)); max-height:min(56dvh,470px); overflow-y:auto; overscroll-behavior:contain; padding:8px 16px 14px; border-radius:22px; scrollbar-width:none; transition:height .24s cubic-bezier(.22,.8,.3,1); }
+.bottom-sheet { position:absolute; z-index:1100; left:12px; right:12px; bottom:max(10px,env(safe-area-inset-bottom)); max-height:min(56dvh,470px); overflow-y:auto; overscroll-behavior:contain; scroll-padding-bottom:38px; padding:8px 16px 14px; border-radius:22px; scrollbar-width:none; transition:height .24s cubic-bezier(.22,.8,.3,1); }
 .bottom-sheet::-webkit-scrollbar { display:none; }
 .bottom-sheet.is-dragging { transition:none; overflow:hidden; user-select:none; }
 .bottom-sheet.is-collapsed { overflow:hidden; }
