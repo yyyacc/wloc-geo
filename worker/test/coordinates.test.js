@@ -82,6 +82,11 @@ test("generated page uses shared helpers and contains valid inline JavaScript", 
   const html = getPageHtml();
   assert.match(html, /const WLOC_COORDINATES =/);
   assert.match(html, /const result = normalizeToWgs84\(parseMapUrl\(input\)\)/);
+  assert.match(html, /<section class="selection-head no-title" id="selectionHead">/);
+  assert.match(html, /<h1 id="selectionTitle"><\/h1>/);
+  assert.match(html, /setSheetExpanded\(sheetExpanded\)/);
+  assert.match(html, /clearTimeout\(toastTimer\)/);
+  assert.equal(html.includes("toast('搜索中...')"), false);
   assert.equal(html.includes("$" + "{getClientCoordinateHelpersSource()}"), false);
 
   const inlineScripts = [...html.matchAll(/<script(?: [^>]*)?>([\s\S]*?)<\/script>/g)];

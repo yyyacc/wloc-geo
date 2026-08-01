@@ -17,7 +17,7 @@ export function getPageHtml(options = {}) {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
 ${amapScript}
 <style>
-:root { --blue:#0a66ff; --blue-dark:#0755d9; --green:#24b35a; --red:#ff453a; --gray:#6f7785; --ink:#111827; --line:rgba(255,255,255,.68); --glass:rgba(248,250,253,.76); --soft:rgba(239,243,248,.82); }
+:root { --blue:#0a66ff; --blue-dark:#0755d9; --green:#24b35a; --red:#ff453a; --gray:#6f7785; --ink:#111827; --line:rgba(100,116,139,.18); --glass:rgba(248,250,253,.88); --soft:rgba(239,243,248,.82); }
 * { margin:0; padding:0; box-sizing:border-box; }
 html, body { width:100%; height:100%; overflow:hidden; }
 body { font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",sans-serif; color:var(--ink); background:#dbe5ef; -webkit-font-smoothing:antialiased; }
@@ -29,10 +29,10 @@ button { -webkit-tap-highlight-color:transparent; }
 .map-canvas.hidden { visibility:hidden; pointer-events:none; }
 .leaflet-bottom.leaflet-right { bottom:calc(var(--sheet-height,360px) + 10px); right:68px; }
 .amap-logo, .amap-copyright { bottom:calc(var(--sheet-height,360px) + 14px) !important; }
-.glass { background:var(--glass); border:1px solid var(--line); box-shadow:0 14px 36px rgba(18,39,64,.18), inset 0 1px 0 rgba(255,255,255,.72); backdrop-filter:blur(24px) saturate(165%); -webkit-backdrop-filter:blur(24px) saturate(165%); }
+.glass { background:var(--glass); border:1px solid var(--line); box-shadow:0 10px 28px rgba(18,39,64,.14), inset 0 1px 0 rgba(255,255,255,.58); backdrop-filter:blur(18px) saturate(135%); -webkit-backdrop-filter:blur(18px) saturate(135%); }
 .top-stack { position:absolute; z-index:1200; top:max(14px,env(safe-area-inset-top)); left:14px; right:14px; max-width:520px; }
-.search-bar { height:56px; display:flex; align-items:center; gap:10px; padding:7px 8px 7px 16px; border-radius:22px; }
-.search-mode-button { width:34px; height:40px; flex:none; display:grid; place-items:center; border:0; border-radius:12px; background:transparent; color:#5e6877; cursor:pointer; transition:.16s ease; }
+.search-bar { height:56px; display:flex; align-items:center; gap:10px; padding:7px 8px 7px 16px; border-radius:18px; }
+.search-mode-button { width:34px; height:40px; flex:none; display:grid; place-items:center; border:0; border-radius:10px; background:transparent; color:#5e6877; cursor:pointer; transition:.16s ease; }
 .search-mode-button svg { width:18px; height:18px; }
 .search-mode-button .around-icon { display:none; }
 .search-mode-button.active .text-icon { display:none; }
@@ -42,50 +42,55 @@ button { -webkit-tap-highlight-color:transparent; }
 .search-mode-button:focus-visible { outline:2px solid var(--blue); outline-offset:2px; }
 .search-bar input { flex:1; min-width:0; height:40px; border:0; outline:0; background:transparent; color:var(--ink); font-size:16px; font-weight:500; }
 .search-bar input::placeholder { color:#737d8c; }
-.search-button { height:40px; min-width:66px; padding:0 16px; border:0; border-radius:15px; color:#fff; background:rgba(10,102,255,.9); font-size:14px; font-weight:700; cursor:pointer; box-shadow:0 6px 16px rgba(10,102,255,.25); }
+.search-button { height:40px; min-width:66px; padding:0 16px; border:0; border-radius:11px; color:#fff; background:rgba(10,102,255,.9); font-size:14px; font-weight:700; cursor:pointer; box-shadow:0 6px 16px rgba(10,102,255,.25); }
 .search-button:active { transform:scale(.96); }
 .search-button:disabled { opacity:.62; }
-.search-results { display:none; margin-top:9px; max-height:min(36vh,320px); overflow-y:auto; border-radius:20px; padding:7px; }
+.search-results { display:none; margin-top:9px; max-height:min(36vh,320px); overflow-y:auto; border-radius:16px; padding:7px; }
 .search-results.show { display:block; }
-.search-result { width:100%; display:block; padding:11px 12px; border:0; border-bottom:1px solid rgba(93,108,127,.14); border-radius:12px; background:transparent; text-align:left; cursor:pointer; }
+.search-result { width:100%; display:block; padding:11px 12px; border:0; border-bottom:1px solid rgba(93,108,127,.14); border-radius:10px; background:transparent; text-align:left; cursor:pointer; }
 .search-result:last-child { border-bottom:0; }
 .search-result:active { background:rgba(255,255,255,.7); }
 .search-result-name { display:block; font-size:14px; font-weight:650; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .search-result-address { display:block; margin-top:3px; font-size:11px; line-height:1.35; color:var(--gray); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.layer-switch { position:absolute; top:calc(max(14px,env(safe-area-inset-top)) + 68px); right:14px; z-index:1100; display:flex; gap:3px; padding:4px; border-radius:14px; }
-.layer-btn { border:0; background:transparent; padding:7px 10px; border-radius:10px; font-size:12px; font-weight:650; color:#344052; cursor:pointer; transition:.16s ease; white-space:nowrap; }
+.search-state { padding:14px 12px; color:#4e5968; font-size:13px; line-height:1.4; text-align:center; }
+.search-state.error { color:#b42318; }
+.layer-switch { position:absolute; top:calc(max(14px,env(safe-area-inset-top)) + 68px); right:14px; z-index:1100; display:flex; gap:3px; padding:4px; border-radius:12px; }
+.layer-btn { border:0; background:transparent; padding:7px 10px; border-radius:8px; font-size:12px; font-weight:650; color:#344052; cursor:pointer; transition:.16s ease; white-space:nowrap; }
 .layer-btn.active { background:rgba(10,102,255,.92); color:#fff; box-shadow:0 4px 12px rgba(10,102,255,.24); }
 .layer-btn:active { transform:scale(.95); }
 .locate-fab { position:absolute; z-index:1150; right:18px; bottom:calc(var(--sheet-height,360px) + max(24px,env(safe-area-inset-bottom))); width:52px; height:52px; display:grid; place-items:center; border:1px solid var(--line); border-radius:50%; color:#0c345d; cursor:pointer; }
 .locate-fab svg { width:23px; height:23px; }
 .locate-fab:active { transform:scale(.94); }
-.bottom-sheet { position:absolute; z-index:1100; left:12px; right:12px; bottom:max(10px,env(safe-area-inset-bottom)); max-height:min(56dvh,470px); overflow-y:auto; overscroll-behavior:contain; padding:8px 16px 14px; border-radius:28px; scrollbar-width:none; transition:height .24s cubic-bezier(.22,.8,.3,1); }
+.bottom-sheet { position:absolute; z-index:1100; left:12px; right:12px; bottom:max(10px,env(safe-area-inset-bottom)); max-height:min(56dvh,470px); overflow-y:auto; overscroll-behavior:contain; padding:8px 16px 14px; border-radius:22px; scrollbar-width:none; transition:height .24s cubic-bezier(.22,.8,.3,1); }
 .bottom-sheet::-webkit-scrollbar { display:none; }
 .bottom-sheet.is-dragging { transition:none; overflow:hidden; user-select:none; }
 .bottom-sheet.is-collapsed { overflow:hidden; }
 .sheet-handle { display:block; width:64px; height:17px; margin:-2px auto 3px; padding:0; border:0; background:transparent; cursor:ns-resize; touch-action:none; }
 .sheet-handle::after { content:""; display:block; width:38px; height:5px; margin:auto; border-radius:99px; background:rgba(55,65,81,.24); }
 .selection-head { display:grid; grid-template-columns:1fr auto; gap:2px 12px; align-items:start; }
+.selection-head.no-title { gap:8px 12px; }
 .eyebrow { color:var(--blue); font-size:11px; line-height:1; font-weight:750; letter-spacing:.08em; text-transform:uppercase; }
-.selection-head h1 { margin-top:5px; font-size:20px; line-height:1.2; letter-spacing:-.02em; }
-.favorite-icon { grid-column:2; grid-row:1 / span 2; width:40px; height:40px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.8); border-radius:14px; background:rgba(255,255,255,.48); color:#f05269; cursor:pointer; }
+.selection-head h1 { margin-top:5px; font-size:20px; line-height:1.2; }
+.selection-head h1:empty { display:none; }
+.favorite-icon { grid-column:2; grid-row:1 / span 2; width:40px; height:40px; display:grid; place-items:center; border:1px solid rgba(100,116,139,.16); border-radius:10px; background:rgba(255,255,255,.58); color:#f05269; cursor:pointer; }
 .favorite-icon svg { width:20px; height:20px; }
-.coords { grid-column:1 / -1; margin-top:8px; padding:9px 11px; border-radius:12px; background:rgba(236,241,247,.78); color:#4e5968; font-family:"SF Mono",ui-monospace,monospace; font-size:12px; line-height:1.35; word-break:break-all; }
+.coords { grid-column:1 / -1; margin-top:8px; padding:9px 11px; border-radius:10px; background:rgba(236,241,247,.86); color:#4e5968; font-family:"SF Mono",ui-monospace,monospace; font-size:12px; line-height:1.35; word-break:break-all; }
+.selection-head.no-title .coords { grid-column:1; grid-row:2; margin-top:0; }
 .altitude-block { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:8px; margin-top:10px; }
 .field { display:flex; flex-direction:column; gap:5px; min-width:0; color:var(--gray); font-size:10px; font-weight:650; }
-.field input { width:100%; min-width:0; height:40px; padding:0 10px; border:1px solid rgba(115,129,148,.2); border-radius:12px; outline:0; background:rgba(255,255,255,.58); color:var(--ink); font-size:13px; }
+.field input { width:100%; min-width:0; height:40px; padding:0 10px; border:1px solid rgba(115,129,148,.2); border-radius:10px; outline:0; background:rgba(255,255,255,.68); color:var(--ink); font-size:13px; }
 .field input:focus { border-color:rgba(10,102,255,.58); box-shadow:0 0 0 3px rgba(10,102,255,.09); }
-.btn { min-width:0; padding:11px 14px; border:1px solid rgba(255,255,255,.68); border-radius:14px; font-size:14px; font-weight:680; cursor:pointer; transition:.16s ease; }
+.btn { min-width:0; padding:11px 14px; border:1px solid rgba(255,255,255,.68); border-radius:11px; font-size:14px; font-weight:680; cursor:pointer; transition:.16s ease; }
 .btn:active { transform:scale(.97); }
 .btn-primary { color:#fff; background:rgba(10,102,255,.92); box-shadow:0 8px 18px rgba(10,102,255,.24); }
 .btn-primary:active { background:var(--blue-dark); }
 .btn-secondary { color:#263244; background:rgba(255,255,255,.52); }
 .btn-danger { color:#fff; background:rgba(255,69,58,.9); }
 .btn.success { background:var(--green); }
-.btn-sm { flex:none; padding:7px 10px; border-radius:10px; font-size:11px; }
+.btn-sm { flex:none; padding:7px 10px; border-radius:8px; font-size:11px; }
 .primary-action { width:100%; margin-top:10px; min-height:48px; font-size:16px; }
 .tool-tabs { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:9px; }
-.tool-tab { display:flex; align-items:center; justify-content:center; gap:6px; padding:10px 7px; border:1px solid rgba(255,255,255,.72); border-radius:13px; background:rgba(255,255,255,.44); color:#394658; font-size:12px; font-weight:650; cursor:pointer; }
+.tool-tab { display:flex; align-items:center; justify-content:center; gap:6px; padding:10px 7px; border:1px solid rgba(100,116,139,.14); border-radius:10px; background:rgba(255,255,255,.56); color:#394658; font-size:12px; font-weight:650; cursor:pointer; }
 .tool-tab svg { width:16px; height:16px; }
 .tool-tab.active { color:var(--blue); background:rgba(235,243,255,.8); border-color:rgba(10,102,255,.2); }
 .tool-panel { display:none; margin-top:10px; padding-top:10px; border-top:1px solid rgba(84,101,122,.13); }
@@ -93,19 +98,19 @@ button { -webkit-tap-highlight-color:transparent; }
 .panel-title { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
 .panel-title h3 { font-size:14px; }
 .input-row { display:flex; gap:8px; }
-.input-row input { flex:1; min-width:0; height:42px; padding:0 11px; border:1px solid rgba(115,129,148,.2); border-radius:12px; outline:0; background:rgba(255,255,255,.58); color:var(--ink); font-size:13px; }
+.input-row input { flex:1; min-width:0; height:42px; padding:0 11px; border:1px solid rgba(115,129,148,.2); border-radius:10px; outline:0; background:rgba(255,255,255,.68); color:var(--ink); font-size:13px; }
 .input-row input:focus { border-color:rgba(10,102,255,.58); }
 .support-note { margin-top:6px; color:var(--gray); font-size:10px; }
 .row { display:flex; gap:8px; margin-top:9px; flex-wrap:wrap; }
 .row .btn { flex:1; }
 .status { margin-top:9px; color:var(--gray); font-size:10px; line-height:1.35; text-align:center; }
-.error-banner { background:rgba(255,69,58,.94); color:#fff; padding:12px 14px; border-radius:14px; margin-bottom:10px; font-size:12px; line-height:1.45; display:none; }
+.error-banner { background:rgba(255,69,58,.94); color:#fff; padding:12px 14px; border-radius:10px; margin-bottom:10px; font-size:12px; line-height:1.45; display:none; }
 .error-banner b { display:block; margin-bottom:3px; }
-.active-loc { padding:10px 11px; border-radius:12px; background:rgba(236,241,247,.78); color:#333; font-size:12px; }
+.active-loc { padding:10px 11px; border-radius:10px; background:rgba(236,241,247,.86); color:#333; font-size:12px; }
 .active-loc .label { color:var(--gray); margin-bottom:4px; font-size:10px; }
 .active-loc .value { font-family:"SF Mono",ui-monospace,monospace; line-height:1.45; }
 .fav-list { max-height:210px; overflow-y:auto; }
-.fav-item { display:flex; align-items:center; gap:8px; padding:9px 10px; background:rgba(236,241,247,.78); border-radius:12px; margin-bottom:6px; cursor:pointer; }
+.fav-item { display:flex; align-items:center; gap:8px; padding:9px 10px; background:rgba(236,241,247,.86); border-radius:10px; margin-bottom:6px; cursor:pointer; }
 .fav-item:active { background:rgba(225,232,241,.9); }
 .fav-item .fav-info { flex:1; min-width:0; }
 .fav-item .fav-name { color:#273244; font-size:13px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -117,9 +122,9 @@ button { -webkit-tap-highlight-color:transparent; }
 .toast.show { opacity:1; }
 .modal-overlay { position:fixed; inset:0; z-index:4000; display:none; align-items:center; justify-content:center; padding:20px; background:rgba(15,23,42,.38); backdrop-filter:blur(8px); }
 .modal-overlay.show { display:flex; }
-.modal { width:100%; max-width:340px; padding:20px; border:1px solid rgba(255,255,255,.72); border-radius:24px; background:rgba(250,252,255,.92); box-shadow:0 24px 60px rgba(15,23,42,.24); }
+.modal { width:100%; max-width:340px; padding:20px; border:1px solid rgba(100,116,139,.18); border-radius:18px; background:rgba(250,252,255,.94); box-shadow:0 20px 48px rgba(15,23,42,.2); }
 .modal h3 { margin-bottom:16px; text-align:center; font-size:17px; }
-.modal input { width:100%; height:46px; padding:0 12px; border:1px solid rgba(115,129,148,.25); border-radius:13px; outline:0; background:#fff; font-size:15px; margin-bottom:12px; }
+.modal input { width:100%; height:46px; padding:0 12px; border:1px solid rgba(115,129,148,.25); border-radius:10px; outline:0; background:#fff; font-size:15px; margin-bottom:12px; }
 .modal input:focus { border-color:var(--blue); }
 .modal-btns { display:flex; gap:8px; }
 .modal-btns .btn { flex:1; }
@@ -132,7 +137,7 @@ button { -webkit-tap-highlight-color:transparent; }
   .amap-logo, .amap-copyright { bottom:0 !important; }
 }
 @media(max-width:390px) {
-  .bottom-sheet { left:8px; right:8px; padding-left:13px; padding-right:13px; border-radius:24px; }
+  .bottom-sheet { left:8px; right:8px; padding-left:13px; padding-right:13px; border-radius:20px; }
   .altitude-block { grid-template-columns:1.2fr 1fr; gap:6px; }
   .field input { padding:0 7px; font-size:12px; }
   .tool-tab { font-size:11px; }
@@ -175,10 +180,10 @@ button { -webkit-tap-highlight-color:transparent; }
       请确认定位模块、MITM、证书及代理网络均已正确启用。
     </div>
 
-    <section class="selection-head">
+    <section class="selection-head no-title" id="selectionHead">
       <div>
         <div class="eyebrow">WLOC · 目标位置</div>
-        <h1 id="selectionTitle">选择一个位置</h1>
+        <h1 id="selectionTitle"></h1>
       </div>
       <button class="favorite-icon" onclick="addFav()" aria-label="收藏位置" title="收藏位置">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"></path></svg>
@@ -271,6 +276,7 @@ let selected = false;
 let activeLon = null, activeLat = null;
 let placeResults = [];
 let searchMode = 'text';
+let searchState = null;
 
 const map = L.map('map', {zoomControl:false, worldCopyJump:true, maxBounds:[[-90,-180],[90,180]], maxBoundsViscosity:1.0}).setView([lat, lon], 13);
 const tiles = {
@@ -364,9 +370,11 @@ function setPos(newLat, newLon, label) {
     const gcj = wgs84ToGcj02(lat, lon);
     amapMarker.setPosition([gcj.lon, gcj.lat]);
   }
-  document.getElementById('selectionTitle').textContent = label || '已选择目标位置';
+  document.getElementById('selectionTitle').textContent = label || '';
+  document.getElementById('selectionHead').classList.toggle('no-title', !label);
   document.getElementById('coords').textContent = formatCoords(lon, lat);
   autoQueryAlt();
+  setTimeout(() => setSheetExpanded(sheetExpanded), 0);
 }
 
 function moveTo(newLat, newLon, zoom, label) {
@@ -378,10 +386,12 @@ function moveTo(newLat, newLon, zoom, label) {
   }
 }
 
+let toastTimer = null;
 function toast(msg, ms) {
   const t = document.getElementById('toast');
+  clearTimeout(toastTimer);
   t.textContent = msg; t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), ms || 2500);
+  toastTimer = setTimeout(() => t.classList.remove('show'), ms || 2500);
 }
 
 function showError(show) {
@@ -683,7 +693,7 @@ async function parseUrl() {
     const parsedLat = parseFloat(d.lat);
     const parsedLon = parseFloat(d.lon);
     if (r.ok && Number.isFinite(parsedLat) && Number.isFinite(parsedLon) && Math.abs(parsedLat) <= 90 && Math.abs(parsedLon) <= 180) {
-      moveTo(parsedLat, parsedLon, 15, d.name || '已导入位置');
+      moveTo(parsedLat, parsedLon, 15, d.name || '');
       toast((d.name ? d.name + ' · ' : '已解析: ') + formatDms(parsedLon) + ', ' + formatDms(parsedLat));
       return;
     }
@@ -698,29 +708,36 @@ async function parseUrl() {
     toast('解析失败: ' + (apiError || '请检查链接格式'), 4500);
     return;
   }
-  moveTo(result.lat, result.lon, 15, '已导入位置');
+  moveTo(result.lat, result.lon, 15, '');
   toast('已解析: ' + formatDms(result.lon) + ', ' + formatDms(result.lat));
 }
 
 async function searchPlace() {
   const q = document.getElementById('searchInput').value.trim();
-  if (!q) return toast('请输入地名');
+  if (!q) {
+    placeResults = [];
+    searchState = { message:'请输入地名', error:true };
+    renderSearchResults();
+    return;
+  }
   const button = document.getElementById('searchBtn');
   button.disabled = true;
   button.textContent = '搜索中';
-  toast('搜索中...');
+  placeResults = [];
+  searchState = null;
+  renderSearchResults();
   try {
     const url = SEARCH_API + '?mode=' + searchMode + '&q=' + encodeURIComponent(q) + '&lat=' + lat + '&lon=' + lon;
     const r = await fetch(url, { cache:'no-store' });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
     placeResults = Array.isArray(data.results) ? data.results : [];
+    searchState = placeResults.length ? null : { message:'未找到: ' + q, error:false };
     renderSearchResults();
-    if (!placeResults.length) toast('未找到: ' + q, 3000);
   } catch(e) {
     placeResults = [];
+    searchState = { message:'搜索失败: ' + (e && e.message ? e.message : e), error:true };
     renderSearchResults();
-    toast('搜索失败: ' + (e && e.message ? e.message : e), 4000);
   } finally {
     button.disabled = false;
     button.textContent = '搜索';
@@ -738,14 +755,21 @@ function toggleSearchMode() {
   modeButton.title = nextModeLabel;
   document.getElementById('searchInput').placeholder = around ? '搜索选定位置周边 2 km' : '搜索地名或地址';
   placeResults = [];
+  searchState = null;
   renderSearchResults();
-  toast(around ? '已切换到周边 2 km 搜索' : '已切换到普通搜索', 2500);
 }
 
 function renderSearchResults() {
   const list = document.getElementById('searchResults');
   list.replaceChildren();
-  list.classList.toggle('show', placeResults.length > 0);
+  list.classList.toggle('show', placeResults.length > 0 || searchState !== null);
+  if (searchState) {
+    const state = document.createElement('div');
+    state.className = 'search-state' + (searchState.error ? ' error' : '');
+    state.textContent = searchState.message;
+    list.appendChild(state);
+    return;
+  }
   placeResults.forEach((place, index) => {
     const item = document.createElement('button');
     item.type = 'button';
@@ -768,7 +792,6 @@ function selectSearchResult(index) {
   moveTo(place.lat, place.lon, 16, place.name);
   document.getElementById('searchInput').value = place.name;
   document.getElementById('searchResults').classList.remove('show');
-  toast((place.name + (place.address ? ' · ' + place.address : '')).slice(0, 70), 3500);
 }
 
 document.addEventListener('paste', e => {
