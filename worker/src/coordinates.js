@@ -76,15 +76,54 @@ export function inferCoordinateSource(text) {
 
 export function coordinateSystemForSource(source) {
   if (source === "baidu") return "bd09";
-  return source === "apple" || source === "amap" ? "gcj02" : "wgs84";
+  return source === "apple" || source === "amap" || source === "google" ? "gcj02" : "wgs84";
 }
 
 export function inferCoordinateSystem(text) {
   return coordinateSystemForSource(inferCoordinateSource(text));
 }
 
+// Apple/Google 在港澳台直接提供 WGS84；高德/百度仍使用国内偏移坐标。
+// 香港用多边形近似北界，避免把紧邻的深圳常用区域误判成香港。
+const HK_POLY = [
+  [113.8, 22.1],
+  [113.8, 22.43],
+  [113.9, 22.455],
+  [113.98, 22.487],
+  [114.05, 22.507],
+  [114.11, 22.527],
+  [114.17, 22.543],
+  [114.24, 22.552],
+  [114.32, 22.545],
+  [114.5, 22.45],
+  [114.5, 22.1],
+];
+
+function pointInPoly(lat, lon, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i];
+    const [xj, yj] = poly[j];
+    if (yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+export function usesWgs84Locally(lat, lon, source) {
+  if (source !== "apple" && source !== "google") return false;
+  const inMacau = lat >= 22.1 && lat <= 22.215 && lon >= 113.525 && lon <= 113.605;
+  const inTaiwan = lat >= 21.85 && lat <= 25.35 && lon >= 119.3 && lon <= 122.1;
+  return inMacau || inTaiwan || pointInPoly(lat, lon, HK_POLY);
+}
+
 export function normalizeToWgs84(result) {
   if (!result || result.coordinateSystem !== "gcj02") return result;
+  const source = result.source || result.src;
+  if (usesWgs84Locally(Number(result.lat), Number(result.lon), source)) {
+    return { ...result, coordinateSystem: "wgs84" };
+  }
   const converted = gcj02ToWgs84(Number(result.lat), Number(result.lon));
   return { ...result, lat: converted.lat, lon: converted.lon, coordinateSystem: "wgs84" };
 }
@@ -95,6 +134,7 @@ export function getClientCoordinateHelpersSource() {
 const WLOC_COORDINATES = (() => {
   const A = ${GCJ_A};
   const EE = ${GCJ_EE};
+  const HK_POLY = ${JSON.stringify(HK_POLY)};
 
   function outOfChina(lon, lat) {
     return lon < 72.004 || lon > 137.8347 || lat < 0.8293 || lat > 55.8271;
@@ -144,21 +184,53 @@ const WLOC_COORDINATES = (() => {
     return { lat: wgsLat, lon: wgsLon };
   }
 
-  function inferCoordinateSystem(text) {
+  function inferCoordinateSource(text) {
     const value = String(text || "").toLowerCase();
-    return /maps\\.apple\\.com|(?:^|[./])amap\\.com|autonavi\\.com|(?:^|[?&])lnglat=/.test(value)
-      ? "gcj02"
-      : "wgs84";
+    if (/maps\\.apple\\.com/.test(value)) return "apple";
+    if (/(?:^|[./])amap\\.com|autonavi\\.com|(?:^|[?&])lnglat=/.test(value)) return "amap";
+    if (/maps\\.google\\.|google\\.[^/]+\\/maps/.test(value)) return "google";
+    if (/(?:^|[./])baidu\\.com/.test(value)) return "baidu";
+    return "text";
+  }
+
+  function coordinateSystemForSource(source) {
+    if (source === "baidu") return "bd09";
+    return source === "apple" || source === "amap" || source === "google" ? "gcj02" : "wgs84";
+  }
+
+  function inferCoordinateSystem(text) {
+    return coordinateSystemForSource(inferCoordinateSource(text));
+  }
+
+  function pointInPoly(lat, lon, poly) {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const [xi, yi] = poly[i];
+      const [xj, yj] = poly[j];
+      if (yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+
+  function usesWgs84Locally(lat, lon, source) {
+    if (source !== "apple" && source !== "google") return false;
+    const inMacau = lat >= 22.1 && lat <= 22.215 && lon >= 113.525 && lon <= 113.605;
+    const inTaiwan = lat >= 21.85 && lat <= 25.35 && lon >= 119.3 && lon <= 122.1;
+    return inMacau || inTaiwan || pointInPoly(lat, lon, HK_POLY);
   }
 
   function normalizeToWgs84(result) {
     if (!result || result.coordinateSystem !== "gcj02") return result;
+    const source = result.source || result.src;
+    if (usesWgs84Locally(Number(result.lat), Number(result.lon), source)) {
+      return { ...result, coordinateSystem: "wgs84" };
+    }
     const converted = gcj02ToWgs84(Number(result.lat), Number(result.lon));
     return { ...result, lat: converted.lat, lon: converted.lon, coordinateSystem: "wgs84" };
   }
 
-  return Object.freeze({ wgs84ToGcj02, gcj02ToWgs84, inferCoordinateSystem, normalizeToWgs84 });
+  return Object.freeze({ wgs84ToGcj02, gcj02ToWgs84, inferCoordinateSource, inferCoordinateSystem, normalizeToWgs84, usesWgs84Locally });
 })();
-const { wgs84ToGcj02, gcj02ToWgs84, inferCoordinateSystem, normalizeToWgs84 } = WLOC_COORDINATES;
+const { wgs84ToGcj02, gcj02ToWgs84, inferCoordinateSource, inferCoordinateSystem, normalizeToWgs84, usesWgs84Locally } = WLOC_COORDINATES;
 `;
 }

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import app from "../src/index.js";
+import { round6, toWgs84 } from "../src/parse.js";
 
 const AMAP_URL = "https://uri.amap.com/marker?lnglat=116.4037426,39.9101255";
 
@@ -38,6 +39,20 @@ test("/api/parse leaves overseas Google WGS84 coordinates unchanged", async () =
   assert.deepEqual(await response.json(), {
     lat: 37.334644,
     lon: -122.008972,
+    name: "",
+  });
+});
+
+test("/api/parse converts mainland Google GCJ-02 coordinates to WGS84", async () => {
+  const googleUrl = "https://maps.google.com/?q=39.908722,116.397499";
+  const response = await app.request(
+    "https://worker.test/api/parse?format=json&u=" + encodeURIComponent(googleUrl)
+  );
+  assert.equal(response.status, 200);
+  const expected = toWgs84(39.908722, 116.397499, "google");
+  assert.deepEqual(await response.json(), {
+    lat: round6(expected.lat),
+    lon: round6(expected.lon),
     name: "",
   });
 });

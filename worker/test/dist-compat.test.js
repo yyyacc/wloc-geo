@@ -90,7 +90,12 @@ function distanceMeters(from, to) {
   return 6378137 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-async function runStash({ bodyBytes, storedSettings = null, randomValues = [] }) {
+async function runClient({
+  client,
+  bodyBytes,
+  storedSettings = null,
+  randomValues = [],
+}) {
   const script = await readFile(scriptPath, "utf8");
   const response = { headers: {}, bodyBytes };
   const testMath = Object.create(Math);
@@ -100,17 +105,23 @@ async function runStash({ bodyBytes, storedSettings = null, randomValues = [] })
   const done = new Promise((resolve) => {
     resolveDone = resolve;
   });
-  const context = vm.createContext({
-    $environment: { "stash-version": "1.0" },
+  const storage = {
+    read(key) {
+      return key === "wloc_settings_v2" && storedSettings
+        ? JSON.stringify(storedSettings)
+        : null;
+    },
+    write() {
+      return true;
+    },
+  };
+  const globals = {
     $request: { url: "https://gs-loc.apple.com/clls/wloc" },
     $response: response,
-    $persistentStore: {
-      read(key) {
-        return key === "wloc_settings_v2" && storedSettings
-          ? JSON.stringify(storedSettings)
-          : null;
-      },
-      write() {
+    $persistentStore: storage,
+    $prefs: {
+      valueForKey: storage.read,
+      setValueForKey() {
         return true;
       },
     },
@@ -124,8 +135,16 @@ async function runStash({ bodyBytes, storedSettings = null, randomValues = [] })
     TextDecoder,
     TextEncoder,
     Uint8Array,
-  });
+  };
+  if (client === "quantumultX") globals.$task = {};
+  else if (client === "surge") globals.$environment = { "surge-version": "1.0" };
+  else if (client === "loon") globals.$loon = {};
+  else if (client === "stash") globals.$environment = { "stash-version": "1.0" };
+  else if (client === "shadowrocket") globals.$rocket = {};
+  else if (client === "egern") globals.Egern = {};
+  else throw new Error("unknown test client: " + client);
 
+  const context = vm.createContext(globals);
   vm.runInContext(script, context);
   return Promise.race([
     done,
@@ -133,6 +152,10 @@ async function runStash({ bodyBytes, storedSettings = null, randomValues = [] })
       setTimeout(() => reject(new Error("core script did not call $done")), 1000);
     }),
   ]);
+}
+
+async function runStash(options) {
+  return runClient({ ...options, client: "stash" });
 }
 
 test("Stash receives a top-level response object", async () => {
@@ -161,6 +184,41 @@ test("random radius is applied to a real WLOC protobuf payload", async () => {
   assert.ok(actual.latitude > target.latitude);
   assert.ok(Math.abs(actual.longitude - target.longitude) < 1e-7);
   assert.ok(distance > 49.5 && distance < 50.5, `expected about 50m, got ${distance}m`);
+});
+
+test("all six proxy clients apply persisted zero coordinates with compatible output", async () => {
+  for (const client of [
+    "quantumultX",
+    "surge",
+    "loon",
+    "stash",
+    "shadowrocket",
+    "egern",
+  ]) {
+    const payload = await runClient({
+      client,
+      bodyBytes: makeWlocBody(22.5, 113.9),
+      storedSettings: {
+        latitude: 0,
+        longitude: 0,
+        accuracy: 25,
+        altitude: null,
+        altitudeOffset: 0,
+        randomRadius: 0,
+      },
+    });
+    const response = client === "quantumultX" || client === "stash"
+      ? payload
+      : payload.response;
+    assert.ok(response, client + " returned no response");
+    const value = response.bodyBytes ?? response.body;
+    const bytes = value instanceof ArrayBuffer ? new Uint8Array(value) : value;
+    assert.deepEqual(
+      readLocation(bytes),
+      { latitude: 0, longitude: 0 },
+      client
+    );
+  }
 });
 
 test("core script contains spherical, uniform-area random-radius displacement", async () => {

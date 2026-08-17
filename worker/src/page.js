@@ -707,25 +707,34 @@ function locateMe() {
 
 function parseMapUrl(text) {
   let m;
+  const source = inferCoordinateSource(text);
   const coordinateSystem = inferCoordinateSystem(text);
-  m = text.match(/ll=([0-9.-]+),([0-9.-]+)/);
-  if (m) return { lat: parseFloat(m[1]), lon: parseFloat(m[2]), coordinateSystem };
-  m = text.match(/@([0-9.-]+),([0-9.-]+)/);
-  if (m) return { lat: parseFloat(m[1]), lon: parseFloat(m[2]), coordinateSystem };
-  m = text.match(/lnglat=([0-9.-]+),([0-9.-]+)/);
-  if (m) return { lat: parseFloat(m[2]), lon: parseFloat(m[1]), coordinateSystem };
-  m = text.match(/(?:location|center)=([0-9.-]+),([0-9.-]+)/);
+  const point = (lat, lon) => ({
+    lat: parseFloat(lat),
+    lon: parseFloat(lon),
+    source,
+    coordinateSystem,
+  });
+  m = text.match(/(?:^|[?&])(?:coordinate|ll|sll)=(-?[0-9.]+)(?:,|%2C)(-?[0-9.]+)/i);
+  if (m) return point(m[1], m[2]);
+  m = text.match(/!3d(-?[0-9.]+)!4d(-?[0-9.]+)/);
+  if (m) return point(m[1], m[2]);
+  m = text.match(/[?&]q=(-?[0-9.]+)(?:,|%2C)(-?[0-9.]+)/i);
+  if (m && source === 'amap') return point(m[1], m[2]);
+  m = text.match(/(?:^|[?&])(?:lnglat|position)=(-?[0-9.]+)(?:,|%2C)(-?[0-9.]+)/i);
+  if (m) return point(m[2], m[1]);
+  m = text.match(/(?:^|[?&])(?:location|center)=(-?[0-9.]+)(?:,|%2C)(-?[0-9.]+)/i);
   if (m) {
-    return coordinateSystem === 'gcj02'
-      ? { lat: parseFloat(m[2]), lon: parseFloat(m[1]), coordinateSystem }
-      : { lat: parseFloat(m[1]), lon: parseFloat(m[2]), coordinateSystem };
+    return source === 'amap' ? point(m[2], m[1]) : point(m[1], m[2]);
   }
-  m = text.match(/([0-9]+\\.[0-9]+)[,\\s]+([0-9]+\\.[0-9]+)/);
+  m = text.match(/\\/maps\\/[^\\s]*@(-?[0-9.]+),(-?[0-9.]+)/);
+  if (m) return point(m[1], m[2]);
+  m = text.match(/(-?[0-9]+\\.[0-9]+)[,\\s]+(-?[0-9]+\\.[0-9]+)/);
   if (m) {
     const a = parseFloat(m[1]), b = parseFloat(m[2]);
-    if (a < 90 && b > 90) return { lat: a, lon: b, coordinateSystem };
-    if (b < 90 && a > 90) return { lat: b, lon: a, coordinateSystem };
-    return { lat: a, lon: b, coordinateSystem };
+    if (Math.abs(a) <= 90 && Math.abs(b) > 90) return point(a, b);
+    if (Math.abs(b) <= 90 && Math.abs(a) > 90) return point(b, a);
+    return point(a, b);
   }
   return null;
 }

@@ -34,7 +34,7 @@ test("does not misclassify Google coordinate queries as Amap", () => {
       lon: 116.397499,
       name: "",
       src: "google",
-      coordinateSystem: "wgs84",
+      coordinateSystem: "gcj02",
     }
   );
   assert.deepEqual(
@@ -44,7 +44,7 @@ test("does not misclassify Google coordinate queries as Amap", () => {
       lon: 116.397499,
       name: "",
       src: "google",
-      coordinateSystem: "wgs84",
+      coordinateSystem: "gcj02",
     }
   );
 });
