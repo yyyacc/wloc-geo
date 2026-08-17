@@ -50,6 +50,7 @@ test("infers coordinate source and system from map URLs", () => {
     "amap"
   );
   assert.equal(inferCoordinateSource("https://www.google.com/maps/@39.9,116.4,15z"), "google");
+  assert.equal(inferCoordinateSource("https://map.baidu.com/poi/test/@1,2,19z"), "baidu");
   assert.equal(inferCoordinateSystem("39.9,116.4"), "wgs84");
   assert.equal(inferCoordinateSystem("https://maps.apple.com/?ll=39.9,116.4"), "gcj02");
 });
@@ -83,8 +84,10 @@ test("generated page uses shared helpers and contains valid inline JavaScript", 
   assert.match(html, /const WLOC_COORDINATES =/);
   assert.match(html, /const result = normalizeToWgs84\(parseMapUrl\(input\)\)/);
   assert.match(html, /const SAVE_API = 'https:\/\/gs-loc\.apple\.com\/wloc-settings\/save'/);
-  assert.match(html, /SAVE_API \+ '\?lon=' \+ lon \+ '&lat=' \+ lat \+ '&acc=25' \+ altQs \+ offsetQs/);
+  assert.match(html, /SAVE_API \+ '\?lon=' \+ lon \+ '&lat=' \+ lat \+ '&acc=25' \+ altQs \+ offsetQs \+ radiusQs/);
   assert.match(html, /const offsetQs = '&altitudeOffset=' \+ encodeURIComponent\(altitudeOffset\)/);
+  assert.match(html, /const radiusQs = '&randomRadius=' \+ encodeURIComponent\(randomRadius\)/);
+  assert.match(html, /id="randomRadiusInput" type="number" min="0"/);
   assert.match(html, /SEARCH_API \+ '\?mode=' \+ searchMode \+ '&q=' \+ encodeURIComponent\(q\)/);
   assert.match(html, /searchMode === 'around' \? '&lat=' \+ lat \+ '&lon=' \+ lon : ''/);
   assert.match(html, /function hideSearchResults\(\)/);

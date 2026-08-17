@@ -1,6 +1,6 @@
 # Apple WLOC 定位修改
 
-> 测试阶段。修改 Apple 网络定位（WLOC）返回的经纬度、精度和海拔。
+> 测试阶段。修改 Apple 网络定位（WLOC）返回的经纬度、精度和海拔，并可在目标点周围生成随机偏移。
 
 本项目基于 [Yu9191/wloc](https://github.com/Yu9191/wloc) 修改，增加了官方高德地图、地点搜索、地图链接解析、海拔查询和新版选点界面。
 
@@ -44,7 +44,7 @@ Worker 不保存用户选择的坐标；坐标保存在代理软件的本地持�
 | Apple WLOC | HTTP Response | `/clls/wloc` | 修改 Apple 网络定位响应 |
 | WLOC Settings | HTTP Request | `/wloc-settings/save` | 查询、保存或清除设备本地设置 |
 
-MITM 主机名：`gs-loc.apple.com, gs-loc-cn.apple.com`。使用前需要在代理软件中启用模块和 MITM，并安装、信任相应 CA 证书。
+MITM 主机名：`gs-loc.apple.com, gs-loc-cn.apple.com, gsp-ssl.ls.apple.com, bluedot.is.autonavi.com, bluedot.is.autonavi.com.gds.alibabadns.com`。使用前需要在代理软件中启用模块和 MITM，并安装、信任相应 CA 证书。
 
 ## 使用方法
 
@@ -55,11 +55,12 @@ MITM 主机名：`gs-loc.apple.com, gs-loc-cn.apple.com`。使用前需要在代
    - 搜索地名或地址；
    - 导入 Apple Maps、Google Maps、高德、百度链接或坐标文本；
    - 使用浏览器获取当前位置。
-4. 检查海拔和海拔补偿：
+4. 检查海拔、海拔补偿和随机半径：
    - 选点后会自动查询并回填地面海拔；
    - 手动填写的海拔优先；
    - 海拔框留空时，保存前仍会自动查询；
-   - 海拔补偿默认是 `0` 米，可以按设备实测结果修改。
+   - 海拔补偿默认是 `0` 米，可以按设备实测结果修改；
+   - 随机半径默认是 `0` 米（关闭），设为正数后每次 WLOC 响应会在目标点周围随机偏移。
 5. 点击「锁定到此位置」。页面显示成功后，等待下一次 Apple 网络定位请求触发即可生效。
 6. 可在页面的“生效状态”中刷新或清除已保存设置。
 
@@ -102,7 +103,7 @@ npm run deploy                 # 正式部署
 
 | 路径 | 作用 |
 |------|------|
-| `GET /api/parse?u=...&format=json` | 解析地图链接或坐标；中国大陆 Apple/高德坐标自动由 GCJ-02 转为 WGS84 |
+| `GET /api/parse?u=...&format=json` | 解析 Apple、Google、高德、百度链接或坐标，并按来源转换为 WGS84 |
 | `GET /api/geo?lat=...&lon=...&format=json` | 查询地面海拔；优先使用 Open-Meteo，失败时回退到 OpenTopoData |
 | `GET /api/geo?lat=...&lon=...&alt=123&format=json` | 使用调用方给出的海拔，不查询外部高程服务 |
 | `GET /api/search?mode=text&q=...&lat=...&lon=...` | 使用高德 Web 服务搜索地点，最多返回 12 条 WGS84 结果 |
@@ -119,6 +120,13 @@ npm run deploy                 # 正式部署
 - 模块参数 `altitude` 留空：不修改海拔；网页保存的有效海拔优先于模块参数。
 - 真机测试确认 `field5` 使用厘米单位；网页可单独设置海拔补偿，默认 `0m`，当前按 `field5 = (目标海拔 + 海拔补偿) × 100` 写入补偿后的厘米值。
 
+## 随机半径说明
+
+- `0` 米表示关闭随机偏移，行为与旧版本一致。
+- 正数表示最大偏移半径；每次处理 WLOC 响应时，在以目标坐标为圆心的圆形区域内重新取点。
+- 取点使用均匀面积分布和球面距离计算，不会把大多数结果挤在圆心附近。
+- 随机偏移只改变经纬度，不改变精度、海拔及海拔补偿。
+
 ## 故障排查
 
 ### 页面无法保存设置
@@ -126,7 +134,7 @@ npm run deploy                 # 正式部署
 依次确认：
 
 1. MITM 已开启，并已安装、信任 CA 证书；
-2. MITM 主机名包含 `gs-loc.apple.com` 和 `gs-loc-cn.apple.com`；
+2. MITM 主机名包含模块列出的全部 WLOC 域名；
 3. Safari 请求经过当前代理软件。
 
 ### 坐标或海拔没有生效
@@ -137,10 +145,14 @@ npm run deploy                 # 正式部署
 4. 触发一次新的系统定位请求；
 5. 如仍异常，先清除页面中的设备设置，再重新选点保存。
 
-正常情况下，Worker 日志会显示 `[elevation] source=... altitude=5m`，代理日志会显示 `海拔=5m 补偿=+0m field5=500 patched=...`。前者用于确认地面海拔来源，后者用于确认网页设置的补偿值、补偿后的 WLOC 厘米值和成功修改的定位记录数。
+正常情况下，Worker 日志会显示 `[elevation] source=... altitude=5m`，代理日志会显示 `海拔=5m 补偿=+0m 扰动=0m field5=500 patched=...`。前者用于确认地面海拔来源，后者用于确认网页设置的补偿值、补偿后的 WLOC 厘米值和成功修改的定位记录数。
 
 ### 高德地图或搜索不可用
 
 - 地图不可用：检查 `AMAP_JS_KEY`、`AMAP_SECURITY_CODE`、高德安全配置及 Key 的域名限制；
 - 搜索不可用：检查 `AMAP_KEY` 的服务平台类型、配额和状态；
 - 未配置高德凭据时，可继续使用卫星或彩色地图。
+
+## 许可证
+
+本项目基于 Yu9191/wloc 修改，并采用 [AGPL-3.0](LICENSE) 许可证。通过网络提供修改版服务时，请同时遵守该许可证的源代码提供要求。

@@ -1,5 +1,5 @@
 name: Apple WLOC 定位修改
-desc: "修改 Apple 网络定位返回坐标(经纬度+精度+海拔) | 选点页面: 请使用自建 wloc-geo Worker"
+desc: "修改 Apple 网络定位返回坐标(经纬度+精度+海拔+可选随机半径) | 选点页面: 请使用自建 wloc-geo Worker"
 author: Yu9191 Rewrite
 homepage: https://github.com/yyyacc/wloc-geo
 icon: https://raw.githubusercontent.com/yyyacc/wloc-geo/refs/heads/main/wloc.jpg
@@ -9,15 +9,18 @@ http:
   mitm:
     - "gs-loc.apple.com"
     - "gs-loc-cn.apple.com"
+    - "gsp-ssl.ls.apple.com"
+    - "bluedot.is.autonavi.com"
+    - "bluedot.is.autonavi.com.gds.alibabadns.com"
   script:
-    - match: ^https?:\/\/gs-loc(-cn)?\.apple\.com\/clls\/wloc
+    - match: ^https?:\/\/(?:gs-loc(?:-cn)?\.apple\.com|gsp-ssl\.ls\.apple\.com|bluedot\.is\.autonavi\.com(?:\.gds\.alibabadns\.com)?)\/clls\/wloc
       name: WLOC.Location
       type: response
       require-body: true
       binary-mode: true
       max-size: 0
       timeout: 30
-      argument: longitude=113.94114&latitude=22.544577&accuracy=25&altitude=15&logLevel=info
+      argument: longitude=113.94114&latitude=22.544577&accuracy=25&altitude=15&randomRadius=0&logLevel=info
     - match: ^https?:\/\/gs-loc(-cn)?\.apple\.com\/wloc-settings\/save
       name: WLOC.Settings
       type: request

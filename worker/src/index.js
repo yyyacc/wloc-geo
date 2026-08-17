@@ -1,6 +1,13 @@
 import { Hono } from "hono/tiny";
 import { getPageHtml } from "./page.js";
-import { parseCoords, gcj02ToWgs84, round6, wgs84ToGcj02 } from "./parse.js";
+import {
+  parseCoords,
+  gcj02ToWgs84,
+  inRange,
+  round6,
+  toWgs84,
+  wgs84ToGcj02,
+} from "./parse.js";
 
 const app = new Hono();
 
@@ -120,17 +127,19 @@ app.get("/api/search", async (c) => {
 });
 
 // 地图链接解析：供网页和外部客户端调用。
-// GET /api/parse?u=<链接>&format=json&cs=<gcj|none>
-//   返回 {lat, lon, name}; 高德/苹果地图(中国大陆均为 GCJ-02)自动转 WGS84; 境外坐标自动跳过(out_of_china)。cs=none 可强制不转换。
+// GET /api/parse?u=<链接>&format=json&cs=<gcj|bd|none>
+//   默认按 Apple、Google、高德、百度等来源转换为 WGS84；cs 可强制指定或关闭转换。
 //   不带 format=json 时返回纯文本 "lat=..&lon=.." 片段。
 app.get("/api/parse", async (c) => {
   const raw = c.req.query("u") || "";
   const cs = (c.req.query("cs") || "").toLowerCase();
   const fmt = (c.req.query("format") || "").toLowerCase();
   try {
-    let { lat, lon, name, coordinateSystem } = await parseCoords(raw);
-    const needConv = cs === "gcj" || (cs !== "none" && coordinateSystem === "gcj02");
-    if (needConv) ({ lat, lon } = gcj02ToWgs84(lat, lon));
+    let { lat, lon, name, src } = await parseCoords(raw);
+    if (cs === "gcj") ({ lat, lon } = gcj02ToWgs84(lat, lon));
+    else if (cs === "bd") ({ lat, lon } = toWgs84(lat, lon, "baidu"));
+    else if (cs !== "none") ({ lat, lon } = toWgs84(lat, lon, src));
+    if (!inRange(lat, lon)) throw new Error("解析出的坐标超出合法范围");
     lat = round6(lat);
     lon = round6(lon);
     name = name || "";
@@ -144,7 +153,7 @@ app.get("/api/parse", async (c) => {
 });
 
 // 海拔查询: 新增独立路径，不影响 / 与 /api/parse。
-// GET /api/geo?u=<地图链接>&cs=<gcj|none>&alt=<可选海拔>&format=json
+// GET /api/geo?u=<地图链接>&cs=<gcj|bd|none>&alt=<可选海拔>&format=json
 //   或 GET /api/geo?lat=..&lon=..&alt=..
 //   - 提供 alt 时原样回显；否则按坐标查公开高程 API(open-meteo) 取地面海拔。
 //   返回 {lat, lon, alt, name}; 不带 format=json 时返回 "lat=..&lon=..&alt=.." 文本。
@@ -161,10 +170,11 @@ app.get("/api/geo", async (c) => {
     let lon;
     let name = "";
     if (raw) {
-      let coordinateSystem;
-      ({ lat, lon, name, coordinateSystem } = await parseCoords(raw));
-      const needConv = cs === "gcj" || (cs !== "none" && coordinateSystem === "gcj02");
-      if (needConv) ({ lat, lon } = gcj02ToWgs84(lat, lon));
+      let src;
+      ({ lat, lon, name, src } = await parseCoords(raw));
+      if (cs === "gcj") ({ lat, lon } = gcj02ToWgs84(lat, lon));
+      else if (cs === "bd") ({ lat, lon } = toWgs84(lat, lon, "baidu"));
+      else if (cs !== "none") ({ lat, lon } = toWgs84(lat, lon, src));
     } else if (latQ != null && lonQ != null) {
       lat = parseFloat(latQ);
       lon = parseFloat(lonQ);
@@ -175,6 +185,7 @@ app.get("/api/geo", async (c) => {
     }
     // 经度归一化到 -180..180(容忍 253.125 这类 >180 的输入, 自动 -360)
     if (typeof lon === "number" && !Number.isNaN(lon)) lon = ((((lon + 180) % 360) + 360) % 360) - 180;
+    if (!inRange(lat, lon)) throw new Error("lat/lon 超出合法范围");
     lat = round6(lat);
     lon = round6(lon);
 
@@ -234,8 +245,8 @@ async function lookupElevation(lat, lon) {
 }
 
 app.onError((e, c) => {
-  console.error(`${e}`);
-  return c.text(`${e}`, 500);
+  c.header("Access-Control-Allow-Origin", "*");
+  return c.text(`${e && e.message ? e.message : e}`, 500);
 });
 
 export default app;

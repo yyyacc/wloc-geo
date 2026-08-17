@@ -70,10 +70,12 @@ export function inferCoordinateSource(text) {
   if (/maps\.apple\.com/.test(value)) return "apple";
   if (/(?:^|[./])amap\.com|autonavi\.com|(?:^|[?&])lnglat=/.test(value)) return "amap";
   if (/maps\.google\.|google\.[^/]+\/maps/.test(value)) return "google";
+  if (/(?:^|[./])baidu\.com/.test(value)) return "baidu";
   return "text";
 }
 
 export function coordinateSystemForSource(source) {
+  if (source === "baidu") return "bd09";
   return source === "apple" || source === "amap" ? "gcj02" : "wgs84";
 }
 

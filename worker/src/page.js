@@ -77,7 +77,7 @@ button { -webkit-tap-highlight-color:transparent; }
 .favorite-icon svg { width:20px; height:20px; }
 .coords { grid-column:1 / -1; margin-top:8px; padding:9px 11px; border-radius:10px; background:rgba(236,241,247,.86); color:#4e5968; font-family:"SF Mono",ui-monospace,monospace; font-size:12px; line-height:1.35; word-break:break-all; }
 .selection-head.no-title .coords { grid-column:1; grid-row:2; margin-top:0; }
-.altitude-block { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:8px; margin-top:10px; }
+.altitude-block { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr); gap:8px; margin-top:10px; }
 .field { display:flex; flex-direction:column; gap:5px; min-width:0; color:var(--gray); font-size:10px; font-weight:650; }
 .field input { width:100%; min-width:0; height:40px; padding:0 10px; border:1px solid rgba(115,129,148,.2); border-radius:10px; outline:0; background:rgba(255,255,255,.68); color:var(--ink); font-size:13px; }
 .field input:focus { border-color:rgba(10,102,255,.58); box-shadow:0 0 0 3px rgba(10,102,255,.09); }
@@ -141,7 +141,7 @@ button { -webkit-tap-highlight-color:transparent; }
 }
 @media(max-width:390px) {
   .bottom-sheet { left:8px; right:8px; padding-left:13px; padding-right:13px; border-radius:20px; }
-  .altitude-block { grid-template-columns:1.2fr 1fr; gap:6px; }
+  .altitude-block { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
   .field input { padding:0 7px; font-size:12px; }
   .tool-tab { font-size:11px; }
 }
@@ -201,7 +201,7 @@ button { -webkit-tap-highlight-color:transparent; }
       <div class="coords" id="coords">单击地图或搜索地点选择目标坐标</div>
     </section>
 
-    <section class="altitude-block" aria-label="海拔设置">
+    <section class="altitude-block" aria-label="定位设置">
       <label class="field" for="altInput">
         <span>海拔（米）</span>
         <input id="altInput" type="number" step="0.1" placeholder="自动查询" />
@@ -209,6 +209,10 @@ button { -webkit-tap-highlight-color:transparent; }
       <label class="field" for="altitudeOffsetInput">
         <span>海拔补偿（米）</span>
         <input id="altitudeOffsetInput" type="number" step="0.01" value="0" />
+      </label>
+      <label class="field" for="randomRadiusInput">
+        <span>随机半径（米）</span>
+        <input id="randomRadiusInput" type="number" min="0" step="1" value="0" />
       </label>
     </section>
 
@@ -534,10 +538,12 @@ function queryActive() {
         activeLat = queriedLat;
         const alt = (d.altitude != null && d.altitude !== '') ? d.altitude : cachedAlt(activeLon, activeLat);
         const altitudeOffset = validNumber(d.altitudeOffset) ? parseFloat(d.altitudeOffset) : 0;
+        const randomRadius = validNumber(d.randomRadius) && parseFloat(d.randomRadius) >= 0 ? parseFloat(d.randomRadius) : 0;
         document.getElementById('altitudeOffsetInput').value = altitudeOffset;
+        document.getElementById('randomRadiusInput').value = randomRadius;
         const altTxt = (alt != null && alt !== '') ? '  海拔 ' + alt + 'm' : '';
         const accuracyTxt = validNumber(d.accuracy) ? '  精度 ' + parseFloat(d.accuracy) + 'm' : '';
-        el.textContent = formatCoords(activeLon, activeLat) + accuracyTxt + altTxt + formatOffset(altitudeOffset);
+        el.textContent = formatCoords(activeLon, activeLat) + accuracyTxt + altTxt + formatOffset(altitudeOffset) + formatRandomRadius(randomRadius);
         renderFavs();
       } else {
         activeLon = null; activeLat = null;
@@ -573,6 +579,7 @@ function clearActive() {
         activeLon = null; activeLat = null;
         try { localStorage.removeItem('wloc_saved_alt'); } catch(e) {}
         document.getElementById('altitudeOffsetInput').value = '0';
+        document.getElementById('randomRadiusInput').value = '0';
         document.getElementById('activeValue').textContent = '已清除';
         renderFavs();
         toast('已清除设备坐标');
@@ -634,6 +641,18 @@ function formatOffset(value) {
   return '  补偿 ' + (offset >= 0 ? '+' : '') + offset + 'm';
 }
 
+function resolveRandomRadius() {
+  const raw = (document.getElementById('randomRadiusInput').value || '').trim();
+  if (raw === '') return 0;
+  const radius = Number(raw.replace(',', '.'));
+  return Number.isFinite(radius) && radius >= 0 ? radius : null;
+}
+
+function formatRandomRadius(value) {
+  if (!validNumber(value) || parseFloat(value) <= 0) return '';
+  return '  随机半径 ' + parseFloat(value) + 'm';
+}
+
 /* ---- Save to device ---- */
 async function save() {
   if (!selected) { toast('请先在地图上选择一个位置'); return; }
@@ -643,9 +662,12 @@ async function save() {
   try {
     const alt = await resolveAlt();
     const altitudeOffset = resolveAltitudeOffset();
+    const randomRadius = resolveRandomRadius();
+    if (randomRadius === null) throw new Error('随机半径必须是大于或等于 0 的数字');
     const altQs = (alt != null && !Number.isNaN(alt)) ? '&alt=' + alt : '';
     const offsetQs = '&altitudeOffset=' + encodeURIComponent(altitudeOffset);
-    const r = await fetch(SAVE_API + '?lon=' + lon + '&lat=' + lat + '&acc=25' + altQs + offsetQs, {
+    const radiusQs = '&randomRadius=' + encodeURIComponent(randomRadius);
+    const r = await fetch(SAVE_API + '?lon=' + lon + '&lat=' + lat + '&acc=25' + altQs + offsetQs + radiusQs, {
       method: 'GET', mode: 'cors', cache: 'no-store'
     });
     const d = await r.json();
@@ -655,10 +677,11 @@ async function save() {
       setCachedAlt(lat, lon, (alt != null && !Number.isNaN(alt)) ? alt : null);
       const altTxt = (alt != null && !Number.isNaN(alt)) ? '  海拔 ' + alt + 'm' : '';
       const offsetTxt = formatOffset(altitudeOffset);
+      const radiusTxt = formatRandomRadius(randomRadius);
       btn.textContent = '\\u2713 已锁定'; btn.className = 'btn btn-primary primary-action success';
-      document.getElementById('status').textContent = '\\u2713 已写入: ' + formatCoords(lon, lat) + altTxt + offsetTxt + ' \\u00b7 ' + new Date().toLocaleTimeString('zh-CN');
+      document.getElementById('status').textContent = '\\u2713 已写入: ' + formatCoords(lon, lat) + altTxt + offsetTxt + radiusTxt + ' \\u00b7 ' + new Date().toLocaleTimeString('zh-CN');
       setTimeout(() => setSheetExpanded(sheetExpanded), 0);
-      document.getElementById('activeValue').textContent = formatCoords(lon, lat) + '  精度 25m' + altTxt + offsetTxt;
+      document.getElementById('activeValue').textContent = formatCoords(lon, lat) + '  精度 25m' + altTxt + offsetTxt + radiusTxt;
       renderFavs();
       toast('\\u2713 坐标已写入设备，下次定位生效');
       setTimeout(() => { btn.textContent='锁定到此位置'; btn.className='btn btn-primary primary-action'; btn.disabled=false; }, 2500);
@@ -668,7 +691,7 @@ async function save() {
   } catch(e) {
     btn.textContent = '锁定到此位置'; btn.className = 'btn btn-primary primary-action'; btn.disabled = false;
     showError(true);
-    toast('\\u2717 储存失败 - 请检查模块配置', 4000);
+    toast('\\u2717 储存失败: ' + (e.message || '请检查模块配置'), 4000);
   }
 }
 
@@ -713,8 +736,8 @@ async function parseUrl() {
   if (!input) return toast('请粘贴地图链接或坐标');
   toast('解析中...');
 
-  // 优先交给 Worker 解析：支持 Apple/高德链接、%2C 编码逗号、短链跳转，
-  // 并会把中国大陆 Apple/高德的 GCJ-02 坐标转换为 WGS84。
+  // 优先交给 Worker 解析：支持 Apple、Google、高德、百度链接和短链跳转，
+  // 并按链接来源把坐标统一转换为 WGS84。
   let apiError = '';
   try {
     const r = await fetch(PARSE_API + '?format=json&u=' + encodeURIComponent(input), { cache:'no-store' });

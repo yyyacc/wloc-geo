@@ -29,15 +29,15 @@ test("/api/parse preserves raw GCJ-02 coordinates with cs=none", async () => {
   });
 });
 
-test("/api/parse leaves Google WGS84 coordinates unchanged", async () => {
-  const googleUrl = "https://maps.google.com/?q=39.908722,116.397499";
+test("/api/parse leaves overseas Google WGS84 coordinates unchanged", async () => {
+  const googleUrl = "https://www.google.com/maps/@37.3346438,-122.008972,15z";
   const response = await app.request(
     "https://worker.test/api/parse?format=json&u=" + encodeURIComponent(googleUrl)
   );
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), {
-    lat: 39.908722,
-    lon: 116.397499,
+    lat: 37.334644,
+    lon: -122.008972,
     name: "",
   });
 });
@@ -136,4 +136,28 @@ test("/api/search rejects around search without a valid center", async () => {
 
   assert.equal(response.status, 400);
   assert.deepEqual(await response.json(), { error: "周边搜索需要有效的中心坐标" });
+});
+
+test("/api/parse keeps Apple coordinates unchanged in Hong Kong", async () => {
+  const response = await app.request(
+    "https://worker.test/api/parse?format=json&u=" + encodeURIComponent("https://maps.apple.com/?ll=22.284774,114.159437")
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    lat: 22.284774,
+    lon: 114.159437,
+    name: "",
+  });
+});
+
+test("/api/parse converts Baidu BD09MC coordinates to WGS84", async () => {
+  const response = await app.request(
+    "https://worker.test/api/parse?format=json&u=" + encodeURIComponent("https://map.baidu.com/poi/Apple/@12709535.375,2529761.45,19z?uid=abc")
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    lat: 22.284737,
+    lon: 114.158937,
+    name: "Apple",
+  });
 });
