@@ -159,6 +159,15 @@ test("generated page uses shared helpers and contains valid inline JavaScript", 
   assert.match(html, /const offsetQs = '&altitudeOffset=' \+ encodeURIComponent\(altitudeOffset\)/);
   assert.match(html, /const radiusQs = '&randomRadius=' \+ encodeURIComponent\(randomRadius\)/);
   assert.match(html, /id="randomRadiusInput" type="number" min="0"/);
+  assert.match(html, /id="verticalAccuracyInput" type="number"/);
+  assert.match(html, /id="motionTypeInput" type="number"/);
+  assert.match(html, /id="motionConfidenceInput" type="number"/);
+  assert.match(html, /button\.textContent = '锁定到此位置'/);
+  assert.match(html, /button\.textContent = '停止锁定'/);
+  assert.match(html, /button\.textContent = '恢复锁定'/);
+  assert.match(html, /action=enable&enabled=/);
+  assert.equal(html.includes('生效状态'), false);
+  assert.equal(html.includes('clearActive()'), false);
   assert.match(html, /SEARCH_API \+ '\?mode=' \+ searchMode \+ '&q=' \+ encodeURIComponent\(q\)/);
   assert.match(html, /searchMode === 'around' \? '&lat=' \+ lat \+ '&lon=' \+ lon : ''/);
   assert.match(html, /function hideSearchResults\(\)/);

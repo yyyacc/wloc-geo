@@ -58,11 +58,12 @@ function readFields(input) {
   return fields;
 }
 
-function makeWlocBody(latitude, longitude) {
+function makeWlocBody(latitude, longitude, extraFields = {}) {
   const location = [
     ...varintField(1, latitude * 1e8),
     ...varintField(2, longitude * 1e8),
     ...varintField(3, 25),
+    ...Object.entries(extraFields).flatMap(([fieldNo, value]) => varintField(Number(fieldNo), value)),
   ];
   const mac = Array.from(new TextEncoder().encode("aa:bb:cc:dd:ee:ff"));
   const wifi = [...bytesField(1, mac), ...bytesField(2, location)];
@@ -70,13 +71,66 @@ function makeWlocBody(latitude, longitude) {
 }
 
 function readLocation(body) {
-  const wifi = readFields(body).find((field) => field.fieldNo === 2)?.value;
-  const location = readFields(wifi).find((field) => field.fieldNo === 2)?.value;
-  const fields = readFields(location);
+  const fields = readLocationFields(body);
   return {
     latitude: fields.find((field) => field.fieldNo === 1).value / 1e8,
     longitude: fields.find((field) => field.fieldNo === 2).value / 1e8,
   };
+}
+
+function readLocationFields(body) {
+  const wifi = readFields(body).find((field) => field.fieldNo === 2)?.value;
+  const location = readFields(wifi).find((field) => field.fieldNo === 2)?.value;
+  return readFields(location);
+}
+
+function uint16(value) {
+  return [(value >>> 8) & 255, value & 255];
+}
+
+function uint32(value) {
+  return [
+    (value >>> 24) & 255,
+    (value >>> 16) & 255,
+    (value >>> 8) & 255,
+    value & 255,
+  ];
+}
+
+function pascal(value) {
+  const bytes = Array.from(new TextEncoder().encode(value));
+  return [...uint16(bytes.length), ...bytes];
+}
+
+function makeArpc(payload) {
+  return new Uint8Array([
+    ...uint16(1),
+    ...pascal("zh_CN"),
+    ...pascal("com.apple.locationd"),
+    ...pascal("17.0"),
+    ...uint32(1),
+    ...uint32(payload.length),
+    ...payload,
+  ]);
+}
+
+function readArpcPayload(body) {
+  let offset = 2;
+  for (let index = 0; index < 3; index++) {
+    const length = body[offset] * 256 + body[offset + 1];
+    offset += 2 + length;
+  }
+  offset += 4;
+  const length = body[offset] * 16777216
+    + body[offset + 1] * 65536
+    + body[offset + 2] * 256
+    + body[offset + 3];
+  offset += 4;
+  return body.slice(offset, offset + length);
+}
+
+function readUint16(body, offset) {
+  return body[offset] * 256 + body[offset + 1];
 }
 
 function distanceMeters(from, to) {
@@ -170,6 +224,7 @@ test("random radius is applied to a real WLOC protobuf payload", async () => {
   const payload = await runStash({
     bodyBytes: makeWlocBody(target.latitude, target.longitude),
     storedSettings: {
+      enabled: true,
       ...target,
       accuracy: 25,
       altitude: null,
@@ -186,6 +241,142 @@ test("random radius is applied to a real WLOC protobuf payload", async () => {
   assert.ok(distance > 49.5 && distance < 50.5, `expected about 50m, got ${distance}m`);
 });
 
+test("stopped locks pass through the original WLOC bytes", async () => {
+  const original = makeWlocBody(22.5, 113.9, { 4: 9, 6: 12, 11: 3, 12: 80 });
+  const payload = await runStash({
+    bodyBytes: original,
+    storedSettings: {
+      enabled: false,
+      latitude: 22.544577,
+      longitude: 113.94114,
+      accuracy: 25,
+    },
+  });
+
+  assert.deepEqual(Array.from(payload.bodyBytes), Array.from(original));
+});
+
+test("legacy settings without enabled do not modify WLOC responses", async () => {
+  const original = makeWlocBody(22.5, 113.9);
+  const payload = await runStash({
+    bodyBytes: original,
+    storedSettings: {
+      latitude: 22.544577,
+      longitude: 113.94114,
+      accuracy: 25,
+    },
+  });
+
+  assert.deepEqual(Array.from(payload.bodyBytes), Array.from(original));
+});
+
+test("advanced fields are optional and field 4 is always preserved", async () => {
+  const originalFields = { 4: 9, 5: 1234, 6: 12, 11: 7, 12: 40 };
+  const original = makeWlocBody(22.5, 113.9, originalFields);
+  const preserved = await runStash({
+    bodyBytes: original,
+    storedSettings: {
+      enabled: true,
+      latitude: 22.544577,
+      longitude: 113.94114,
+      accuracy: 25,
+      altitude: null,
+    },
+  });
+  const preservedFields = readLocationFields(preserved.bodyBytes);
+  for (const [fieldNo, value] of Object.entries(originalFields)) {
+    assert.equal(preservedFields.find((field) => field.fieldNo === Number(fieldNo)).value, value);
+  }
+
+  const overridden = await runStash({
+    bodyBytes: original,
+    storedSettings: {
+      enabled: true,
+      latitude: 22.544577,
+      longitude: 113.94114,
+      accuracy: 25,
+      altitude: null,
+      verticalAccuracy: 18,
+      motionActivityType: 3,
+      motionActivityConfidence: 80,
+    },
+  });
+  const overriddenFields = readLocationFields(overridden.bodyBytes);
+  assert.equal(overriddenFields.find((field) => field.fieldNo === 4).value, 9);
+  assert.equal(overriddenFields.find((field) => field.fieldNo === 5).value, 1234);
+  assert.equal(overriddenFields.find((field) => field.fieldNo === 6).value, 18);
+  assert.equal(overriddenFields.find((field) => field.fieldNo === 11).value, 3);
+  assert.equal(overriddenFields.find((field) => field.fieldNo === 12).value, 80);
+});
+
+test("structured ARPC responses preserve their envelope while patching WLOC", async () => {
+  const originalPayload = makeWlocBody(22.5, 113.9);
+  const originalArpc = makeArpc(originalPayload);
+  const result = await runStash({
+    bodyBytes: originalArpc,
+    storedSettings: {
+      enabled: true,
+      latitude: 22.544577,
+      longitude: 113.94114,
+      accuracy: 25,
+      altitude: null,
+    },
+  });
+  const output = result.bodyBytes;
+
+  assert.deepEqual(Array.from(output.slice(0, 2)), Array.from(originalArpc.slice(0, 2)));
+  assert.deepEqual(readLocation(readArpcPayload(output)), {
+    latitude: 22.544577,
+    longitude: 113.94114,
+  });
+});
+
+test("structured prefixed and marker responses preserve suffix bytes", async () => {
+  const originalPayload = makeWlocBody(22.5, 113.9);
+  const settings = {
+    enabled: true,
+    latitude: 22.544577,
+    longitude: 113.94114,
+    accuracy: 25,
+    altitude: null,
+  };
+
+  const prefixedSuffix = [201, 202];
+  const prefixed = new Uint8Array([
+    0, 1, 0, 0, 0, 3, 0, 0,
+    ...uint16(originalPayload.length),
+    ...originalPayload,
+    ...prefixedSuffix,
+  ]);
+  const prefixedResult = await runStash({ bodyBytes: prefixed, storedSettings: settings });
+  const prefixedLength = readUint16(prefixedResult.bodyBytes, 8);
+  assert.deepEqual(
+    readLocation(prefixedResult.bodyBytes.slice(10, 10 + prefixedLength)),
+    { latitude: 22.544577, longitude: 113.94114 }
+  );
+  assert.deepEqual(Array.from(prefixedResult.bodyBytes.slice(10 + prefixedLength)), prefixedSuffix);
+
+  const markerPrefix = [91, 92, 0, 0, 0, 1, 0, 0];
+  const markerSuffix = [203, 204];
+  const marker = new Uint8Array([
+    ...markerPrefix,
+    ...uint16(originalPayload.length),
+    ...originalPayload,
+    ...markerSuffix,
+  ]);
+  const markerResult = await runStash({ bodyBytes: marker, storedSettings: settings });
+  const markerLength = readUint16(markerResult.bodyBytes, markerPrefix.length);
+  assert.deepEqual(
+    readLocation(markerResult.bodyBytes.slice(markerPrefix.length + 2, markerPrefix.length + 2 + markerLength)),
+    { latitude: 22.544577, longitude: 113.94114 }
+  );
+  assert.deepEqual(
+    Array.from(markerResult.bodyBytes.slice(markerPrefix.length + 2 + markerLength)),
+    markerSuffix
+  );
+});
+
+
 test("all six proxy clients apply persisted zero coordinates with compatible output", async () => {
   for (const client of [
     "quantumultX",
@@ -199,6 +390,7 @@ test("all six proxy clients apply persisted zero coordinates with compatible out
       client,
       bodyBytes: makeWlocBody(22.5, 113.9),
       storedSettings: {
+        enabled: true,
         latitude: 0,
         longitude: 0,
         accuracy: 25,

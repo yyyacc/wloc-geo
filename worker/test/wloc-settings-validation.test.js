@@ -8,31 +8,19 @@ import { fileURLToPath } from "node:url";
 const workerDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const scriptPath = path.resolve(workerDir, "../dist/wloc-settings.js");
 
-async function executeSettings(query) {
+async function executeSettings(query, initialSettings = null, client = "quantumultX") {
   const script = await readFile(scriptPath, "utf8");
   const stored = new Map();
+  if (initialSettings) stored.set("wloc_settings_v2", JSON.stringify(initialSettings));
   let resolveDone;
   const done = new Promise((resolve) => {
     resolveDone = resolve;
   });
-  const context = vm.createContext({
-    $task: {},
+  const globals = {
     $request: {
       url: `https://gs-loc.apple.com/wloc-settings/save?${query}`,
       method: "GET",
       headers: {},
-    },
-    $prefs: {
-      valueForKey(key) {
-        return stored.get(key) ?? null;
-      },
-      setValueForKey(value, key) {
-        stored.set(key, value);
-        return true;
-      },
-      removeValueForKey(key) {
-        return stored.delete(key);
-      },
     },
     $done(payload) {
       resolveDone(payload);
@@ -40,7 +28,37 @@ async function executeSettings(query) {
     console: { log() {} },
     ArrayBuffer,
     Uint8Array,
-  });
+  };
+  const storage = {
+    read(key) {
+      return stored.get(key) ?? null;
+    },
+    write(value, key) {
+      stored.set(key, value);
+      return true;
+    },
+  };
+  if (client === "quantumultX") {
+    globals.$task = {};
+    globals.$prefs = {
+      valueForKey: storage.read,
+      setValueForKey(value, key) {
+        return storage.write(value, key);
+      },
+      removeValueForKey(key) {
+        return stored.delete(key);
+      },
+    };
+  } else {
+    globals.$persistentStore = storage;
+    if (client === "surge") globals.$environment = { "surge-version": "1.0" };
+    else if (client === "loon") globals.$loon = {};
+    else if (client === "stash") globals.$environment = { "stash-version": "1.0" };
+    else if (client === "shadowrocket") globals.$rocket = {};
+    else if (client === "egern") globals.Egern = {};
+    else throw new Error("unknown settings client: " + client);
+  }
+  const context = vm.createContext(globals);
 
   vm.runInContext(script, context);
   const payload = await Promise.race([
@@ -49,7 +67,8 @@ async function executeSettings(query) {
       setTimeout(() => reject(new Error("settings script did not call $done")), 1000);
     }),
   ]);
-  return JSON.parse(payload.body);
+  const response = client === "quantumultX" ? payload : payload.response;
+  return JSON.parse(response.body);
 }
 
 test("settings accepts comma decimals", async () => {
@@ -62,6 +81,62 @@ test("settings accepts comma decimals", async () => {
     altitude: null,
     altitudeOffset: 0,
     randomRadius: 0,
+    enabled: true,
+    verticalAccuracy: null,
+    motionActivityType: null,
+    motionActivityConfidence: null,
+  });
+});
+
+test("settings preserves advanced fields and enables newly saved locations", async () => {
+  const result = await executeSettings(
+    "lon=113.9&lat=22.5&verticalAccuracy=18&motionActivityType=3&motionActivityConfidence=80"
+  );
+  assert.equal(result.enabled, true);
+  assert.equal(result.verticalAccuracy, 18);
+  assert.equal(result.motionActivityType, 3);
+  assert.equal(result.motionActivityConfidence, 80);
+});
+
+test("settings can stop and restore an existing lock without deleting coordinates", async () => {
+  const existing = { longitude: 113.9, latitude: 22.5, accuracy: 25, enabled: true };
+  const stopped = await executeSettings("action=enable&enabled=false", existing);
+  assert.deepEqual(stopped, {
+    success: true,
+    enabled: false,
+    longitude: 113.9,
+    latitude: 22.5,
+  });
+
+  const restored = await executeSettings("action=enable&enabled=true", { ...existing, enabled: false });
+  assert.equal(restored.success, true);
+  assert.equal(restored.enabled, true);
+  assert.equal(restored.longitude, existing.longitude);
+  assert.equal(restored.latitude, existing.latitude);
+});
+
+test("all six proxy clients can save the new settings format", async () => {
+  for (const client of ["quantumultX", "surge", "loon", "stash", "shadowrocket", "egern"]) {
+    const result = await executeSettings(
+      "lon=113.9&lat=22.5&verticalAccuracy=18&motionActivityType=3&motionActivityConfidence=80",
+      null,
+      client
+    );
+    assert.equal(result.success, true, client);
+    assert.equal(result.enabled, true, client);
+    assert.equal(result.verticalAccuracy, 18, client);
+  }
+});
+
+test("legacy saved settings are not treated as a new-format lock", async () => {
+  const result = await executeSettings("action=query", {
+    longitude: 113.9,
+    latitude: 22.5,
+    accuracy: 25,
+  });
+  assert.deepEqual(result, {
+    success: false,
+    error: "无已保存的新格式坐标",
   });
 });
 

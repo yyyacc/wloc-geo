@@ -78,6 +78,7 @@ button { -webkit-tap-highlight-color:transparent; }
 .coords { grid-column:1 / -1; margin-top:8px; padding:9px 11px; border-radius:10px; background:rgba(236,241,247,.86); color:#4e5968; font-family:"SF Mono",ui-monospace,monospace; font-size:12px; line-height:1.35; word-break:break-all; }
 .selection-head.no-title .coords { grid-column:1; grid-row:2; margin-top:0; }
 .altitude-block { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr); gap:8px; margin-top:10px; }
+.advanced-block { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:10px; }
 .field { display:flex; flex-direction:column; gap:5px; min-width:0; color:var(--gray); font-size:10px; font-weight:650; }
 .field input { width:100%; min-width:0; height:40px; padding:0 10px; border:1px solid rgba(115,129,148,.2); border-radius:10px; outline:0; background:rgba(255,255,255,.68); color:var(--ink); font-size:13px; }
 .field input:focus { border-color:rgba(10,102,255,.58); box-shadow:0 0 0 3px rgba(10,102,255,.09); }
@@ -142,6 +143,7 @@ button { -webkit-tap-highlight-color:transparent; }
 @media(max-width:390px) {
   .bottom-sheet { left:8px; right:8px; padding-left:13px; padding-right:13px; border-radius:20px; }
   .altitude-block { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+  .advanced-block { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
   .field input { padding:0 7px; font-size:12px; }
   .tool-tab { font-size:11px; }
 }
@@ -218,6 +220,8 @@ button { -webkit-tap-highlight-color:transparent; }
 
     <button class="btn btn-primary primary-action" id="saveBtn" onclick="save()">锁定到此位置</button>
 
+    <div class="status" id="lockState">未锁定位置</div>
+
     <nav class="tool-tabs" aria-label="位置工具">
       <button class="tool-tab" data-panel="favorites" onclick="toggleToolPanel('favorites')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"></path></svg>
@@ -227,9 +231,9 @@ button { -webkit-tap-highlight-color:transparent; }
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1"></path><path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1"></path></svg>
         导入链接
       </button>
-      <button class="tool-tab" data-panel="active" onclick="toggleToolPanel('active')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 22s7-4.4 7-12a7 7 0 1 0-14 0c0 7.6 7 12 7 12Z"></path><circle cx="12" cy="10" r="2.5"></circle></svg>
-        生效状态
+      <button class="tool-tab" data-panel="advanced" onclick="toggleToolPanel('advanced')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v18M3 12h18"></path><circle cx="12" cy="12" r="8"></circle></svg>
+        高级设置
       </button>
     </nav>
 
@@ -250,16 +254,14 @@ button { -webkit-tap-highlight-color:transparent; }
       <div class="support-note">支持 Apple Maps · Google Maps · 高德 · 百度 · 坐标文本</div>
     </section>
 
-    <section class="tool-panel" id="toolPanel-active">
-      <div class="panel-title"><h3>当前生效位置</h3></div>
-      <div class="active-loc" id="activeLoc">
-        <div class="label">设备持久化数据 · wloc_settings_v2</div>
-        <div class="value" id="activeValue">查询中...</div>
-      </div>
-      <div class="row">
-        <button class="btn btn-sm btn-secondary" onclick="queryActive()">刷新状态</button>
-        <button class="btn btn-sm btn-danger" onclick="clearActive()">清除数据</button>
-      </div>
+    <section class="tool-panel" id="toolPanel-advanced">
+      <div class="panel-title"><h3>高级定位字段</h3></div>
+      <div class="support-note">留空表示保留 Apple 原值，仅供兼容性测试。</div>
+      <section class="advanced-block" aria-label="高级定位字段">
+        <label class="field" for="verticalAccuracyInput"><span>垂直精度（米）</span><input id="verticalAccuracyInput" type="number" step="1" placeholder="原值" /></label>
+        <label class="field" for="motionTypeInput"><span>运动状态类型</span><input id="motionTypeInput" type="number" step="1" placeholder="原值" /></label>
+        <label class="field" for="motionConfidenceInput"><span>运动状态置信度</span><input id="motionConfidenceInput" type="number" step="1" placeholder="原值" /></label>
+      </section>
     </section>
 
     <div class="status" id="status"></div>
@@ -287,7 +289,7 @@ const SEARCH_API = location.origin + '/api/search';
 const FAV_KEY = 'wloc_favorites';
 let lat = 22.544577, lon = 113.94114;
 let selected = false;
-let activeLon = null, activeLat = null;
+let activeLon = null, activeLat = null, activeEnabled = null;
 let placeResults = [];
 let searchMode = 'text';
 let searchState = null;
@@ -396,6 +398,7 @@ function setPos(newLat, newLon, label) {
   document.getElementById('selectionTitle').textContent = label || '';
   document.getElementById('selectionHead').classList.toggle('no-title', !label);
   document.getElementById('coords').textContent = formatCoords(lon, lat);
+  updateLockUI();
   autoQueryAlt();
   setTimeout(() => setSheetExpanded(sheetExpanded), 0);
 }
@@ -441,6 +444,38 @@ function toggleToolPanel(name) {
   }
 }
 
+function parseOptionalNumber(id) {
+  const raw = (document.getElementById(id).value || '').trim();
+  if (raw === '') return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
+function samePoint(aLat, aLon, bLat, bLon) {
+  return Number.isFinite(aLat) && Number.isFinite(aLon) && Number.isFinite(bLat) && Number.isFinite(bLon)
+    && Math.abs(aLat - bLat) < 1e-6 && Math.abs(aLon - bLon) < 1e-6;
+}
+
+function updateLockUI() {
+  const button = document.getElementById('saveBtn');
+  const state = document.getElementById('lockState');
+  if (!samePoint(lat, lon, activeLat, activeLon)) {
+    button.textContent = '锁定到此位置';
+    button.className = 'btn btn-primary primary-action';
+    state.textContent = activeLat == null ? '未锁定位置' : '已选择新位置，尚未锁定';
+    return;
+  }
+  if (activeEnabled === false) {
+    button.textContent = '恢复锁定';
+    button.className = 'btn btn-primary primary-action';
+    state.textContent = '已停止锁定，当前放行真实定位';
+  } else {
+    button.textContent = '停止锁定';
+    button.className = 'btn btn-secondary primary-action';
+    state.textContent = '已锁定到此位置，正在修改定位';
+  }
+}
+
 /* ---- Favorites (localStorage) ---- */
 function getFavs() {
   try { return JSON.parse(localStorage.getItem(FAV_KEY)) || []; } catch(e) { return []; }
@@ -459,12 +494,12 @@ function renderFavs() {
     return;
   }
   el.innerHTML = favs.map((f, i) => {
-    const isActive = activeLon !== null && Math.abs(f.lon - activeLon) < 0.000001 && Math.abs(f.lat - activeLat) < 0.000001;
+    const isActive = activeEnabled !== false && activeLon !== null && Math.abs(f.lon - activeLon) < 0.000001 && Math.abs(f.lat - activeLat) < 0.000001;
     return '<div class="fav-item" onclick="loadFav(' + i + ')">' +
       '<div class="fav-info">' +
         '<div class="fav-name">' + escHtml(f.name) + '<\\/div>' +
         '<div class="fav-coords">' + formatDms(f.lon) + ', ' + formatDms(f.lat) + '<\\/div>' +
-        (isActive ? '<div class="fav-active">\\u2713 当前生效<\\/div>' : '') +
+        (isActive ? '<div class="fav-active">\\u2713 当前锁定<\\/div>' : '') +
       '<\\/div>' +
       '<button class="fav-del" onclick="event.stopPropagation();delFav(' + i + ')" title="删除">\\u00d7<\\/button>' +
     '<\\/div>';
@@ -522,11 +557,9 @@ function clearAllFav() {
   toast('已清空所有收藏');
 }
 
-/* ---- Active location query ---- */
+/* ---- Saved location and lock state ---- */
 function queryActive() {
-  const el = document.getElementById('activeValue');
   const token = ++activeQueryToken;
-  el.textContent = '查询中...';
   fetch(SAVE_API + '?action=query', { method:'GET', mode:'cors', cache:'no-store' })
     .then(r => r.json())
     .then(d => {
@@ -536,24 +569,32 @@ function queryActive() {
       if (d.success && Number.isFinite(queriedLon) && Number.isFinite(queriedLat) && Math.abs(queriedLon) <= 180 && Math.abs(queriedLat) <= 90) {
         activeLon = queriedLon;
         activeLat = queriedLat;
+        activeEnabled = d.enabled !== false;
         const alt = (d.altitude != null && d.altitude !== '') ? d.altitude : cachedAlt(activeLon, activeLat);
         const altitudeOffset = validNumber(d.altitudeOffset) ? parseFloat(d.altitudeOffset) : 0;
         const randomRadius = validNumber(d.randomRadius) && parseFloat(d.randomRadius) >= 0 ? parseFloat(d.randomRadius) : 0;
         document.getElementById('altitudeOffsetInput').value = altitudeOffset;
         document.getElementById('randomRadiusInput').value = randomRadius;
-        const altTxt = (alt != null && alt !== '') ? '  海拔 ' + alt + 'm' : '';
-        const accuracyTxt = validNumber(d.accuracy) ? '  精度 ' + parseFloat(d.accuracy) + 'm' : '';
-        el.textContent = formatCoords(activeLon, activeLat) + accuracyTxt + altTxt + formatOffset(altitudeOffset) + formatRandomRadius(randomRadius);
+        document.getElementById('altInput').value = alt != null && alt !== '' ? alt : '';
+        document.getElementById('verticalAccuracyInput').value = d.verticalAccuracy ?? '';
+        document.getElementById('motionTypeInput').value = d.motionActivityType ?? '';
+        document.getElementById('motionConfidenceInput').value = d.motionActivityConfidence ?? '';
+        lat = activeLat;
+        lon = activeLon;
+        selected = true;
+        document.getElementById('coords').textContent = formatCoords(lon, lat);
+        updateLockUI();
         renderFavs();
       } else {
         activeLon = null; activeLat = null;
-        el.textContent = '无已保存的坐标';
+        activeEnabled = null;
+        updateLockUI();
         renderFavs();
       }
     })
     .catch(() => {
       if (token !== activeQueryToken) return;
-      el.textContent = '查询失败 (需要代理模块支持)';
+      document.getElementById('lockState').textContent = '无法读取锁定状态，请检查代理模块';
     });
 }
 
@@ -569,23 +610,18 @@ function cachedAlt(lo, la) {
   return null;
 }
 
-function clearActive() {
-  if (!confirm('确定清除设备上已保存的坐标？清除后将使用模块默认参数或停止修改定位。')) return;
-  activeQueryToken++;
-  fetch(SAVE_API + '?action=clear', { method:'GET', mode:'cors', cache:'no-store' })
+function setLockEnabled(enabled) {
+  return fetch(SAVE_API + '?action=enable&enabled=' + (enabled ? 'true' : 'false'), { method:'GET', mode:'cors', cache:'no-store' })
     .then(r => r.json())
     .then(d => {
-      if (d.success) {
-        activeLon = null; activeLat = null;
-        try { localStorage.removeItem('wloc_saved_alt'); } catch(e) {}
-        document.getElementById('altitudeOffsetInput').value = '0';
-        document.getElementById('randomRadiusInput').value = '0';
-        document.getElementById('activeValue').textContent = '已清除';
-        renderFavs();
-        toast('已清除设备坐标');
-      } else { toast('清除失败: ' + (d.error || ''), 3000); }
+      if (!d.success) throw new Error(d.error || '状态更新失败');
+      activeEnabled = enabled;
+      updateLockUI();
+      renderFavs();
+      toast(enabled ? '已恢复锁定，记得关开定位生效' : '已停止锁定，当前放行真实定位');
+      return d;
     })
-    .catch(() => { toast('清除失败 - 请检查模块配置', 3000); });
+    .catch((e) => { toast('操作失败: ' + e.message, 3000); throw e; });
 }
 
 /* ---- Altitude helpers ---- */
@@ -657,6 +693,15 @@ function formatRandomRadius(value) {
 async function save() {
   if (!selected) { toast('请先在地图上选择一个位置'); return; }
   const btn = document.getElementById('saveBtn');
+  if (samePoint(lat, lon, activeLat, activeLon) && activeEnabled !== null) {
+    btn.disabled = true;
+    try {
+      await setLockEnabled(activeEnabled === false);
+    } finally {
+      btn.disabled = false;
+    }
+    return;
+  }
   btn.textContent = '锁定中...'; btn.disabled = true;
   showError(false);
   try {
@@ -664,16 +709,23 @@ async function save() {
     const altitudeOffset = resolveAltitudeOffset();
     const randomRadius = resolveRandomRadius();
     if (randomRadius === null) throw new Error('随机半径必须是大于或等于 0 的数字');
+    const verticalAccuracy = parseOptionalNumber('verticalAccuracyInput');
+    const motionActivityType = parseOptionalNumber('motionTypeInput');
+    const motionActivityConfidence = parseOptionalNumber('motionConfidenceInput');
     const altQs = (alt != null && !Number.isNaN(alt)) ? '&alt=' + alt : '';
     const offsetQs = '&altitudeOffset=' + encodeURIComponent(altitudeOffset);
     const radiusQs = '&randomRadius=' + encodeURIComponent(randomRadius);
-    const r = await fetch(SAVE_API + '?lon=' + lon + '&lat=' + lat + '&acc=25' + altQs + offsetQs + radiusQs, {
+    const advancedQs = (verticalAccuracy != null ? '&verticalAccuracy=' + encodeURIComponent(verticalAccuracy) : '')
+      + (motionActivityType != null ? '&motionActivityType=' + encodeURIComponent(motionActivityType) : '')
+      + (motionActivityConfidence != null ? '&motionActivityConfidence=' + encodeURIComponent(motionActivityConfidence) : '');
+    const r = await fetch(SAVE_API + '?lon=' + lon + '&lat=' + lat + '&acc=25' + altQs + offsetQs + radiusQs + advancedQs, {
       method: 'GET', mode: 'cors', cache: 'no-store'
     });
     const d = await r.json();
     if (d.success) {
       activeQueryToken++;
       activeLon = lon; activeLat = lat;
+      activeEnabled = true;
       setCachedAlt(lat, lon, (alt != null && !Number.isNaN(alt)) ? alt : null);
       const altTxt = (alt != null && !Number.isNaN(alt)) ? '  海拔 ' + alt + 'm' : '';
       const offsetTxt = formatOffset(altitudeOffset);
@@ -681,15 +733,15 @@ async function save() {
       btn.textContent = '\\u2713 已锁定'; btn.className = 'btn btn-primary primary-action success';
       document.getElementById('status').textContent = '\\u2713 已写入: ' + formatCoords(lon, lat) + altTxt + offsetTxt + radiusTxt + ' \\u00b7 ' + new Date().toLocaleTimeString('zh-CN');
       setTimeout(() => setSheetExpanded(sheetExpanded), 0);
-      document.getElementById('activeValue').textContent = formatCoords(lon, lat) + '  精度 25m' + altTxt + offsetTxt + radiusTxt;
+      updateLockUI();
       renderFavs();
       toast('\\u2713 坐标已写入设备，下次定位生效');
-      setTimeout(() => { btn.textContent='锁定到此位置'; btn.className='btn btn-primary primary-action'; btn.disabled=false; }, 2500);
+      setTimeout(() => { updateLockUI(); btn.disabled=false; }, 2500);
     } else {
       throw new Error(d.error || '写入失败');
     }
   } catch(e) {
-    btn.textContent = '锁定到此位置'; btn.className = 'btn btn-primary primary-action'; btn.disabled = false;
+    updateLockUI(); btn.disabled = false;
     showError(true);
     toast('\\u2717 储存失败: ' + (e.message || '请检查模块配置'), 4000);
   }
