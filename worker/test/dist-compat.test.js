@@ -149,6 +149,7 @@ async function runClient({
   bodyBytes,
   storedSettings = null,
   randomValues = [],
+  argument = "",
 }) {
   const script = await readFile(scriptPath, "utf8");
   const response = { headers: {}, bodyBytes };
@@ -172,6 +173,7 @@ async function runClient({
   const globals = {
     $request: { url: "https://gs-loc.apple.com/clls/wloc" },
     $response: response,
+    $argument: argument,
     $persistentStore: storage,
     $prefs: {
       valueForKey: storage.read,
@@ -307,6 +309,26 @@ test("advanced fields are optional and field 4 is always preserved", async () =>
   assert.equal(overriddenFields.find((field) => field.fieldNo === 6).value, 18);
   assert.equal(overriddenFields.find((field) => field.fieldNo === 11).value, 3);
   assert.equal(overriddenFields.find((field) => field.fieldNo === 12).value, 80);
+});
+
+test("saved null altitude overrides module altitude and preserves field 5", async () => {
+  const original = makeWlocBody(22.5, 113.9, { 5: 4321 });
+  const payload = await runStash({
+    bodyBytes: original,
+    argument: "longitude=113.94114&latitude=22.544577&accuracy=25&altitude=15",
+    storedSettings: {
+      enabled: true,
+      latitude: 22.544577,
+      longitude: 113.94114,
+      accuracy: 25,
+      altitude: null,
+      altitudeOffset: 0,
+      randomRadius: 0,
+    },
+  });
+
+  const fields = readLocationFields(payload.bodyBytes);
+  assert.equal(fields.find((field) => field.fieldNo === 5).value, 4321);
 });
 
 test("structured ARPC responses preserve their envelope while patching WLOC", async () => {

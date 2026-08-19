@@ -165,6 +165,11 @@ test("generated page uses shared helpers and contains valid inline JavaScript", 
   assert.match(html, /button\.textContent = '锁定到此位置'/);
   assert.match(html, /button\.textContent = '停止锁定'/);
   assert.match(html, /button\.textContent = '恢复锁定'/);
+  assert.match(html, /button\.textContent = activeEnabled === false \? '更新并恢复锁定' : '更新锁定设置'/);
+  assert.match(html, /&& !settingsChanged\(\)/);
+  assert.match(html, /ALTITUDE_LOOKUP_TIMEOUT_MS = 6000/);
+  assert.match(html, /controller\.abort\(\)/);
+  assert.match(html, /海拔查询失败，将保留原始海拔/);
   assert.match(html, /action=enable&enabled=/);
   assert.equal(html.includes('生效状态'), false);
   assert.equal(html.includes('clearActive()'), false);

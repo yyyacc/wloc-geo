@@ -287,9 +287,12 @@ const GEO_API = location.origin + '/api/geo';
 const PARSE_API = location.origin + '/api/parse';
 const SEARCH_API = location.origin + '/api/search';
 const FAV_KEY = 'wloc_favorites';
+const ALTITUDE_LOOKUP_TIMEOUT_MS = 6000;
 let lat = 22.544577, lon = 113.94114;
 let selected = false;
 let activeLon = null, activeLat = null, activeEnabled = null;
+let activeSettingsSignature = null;
+let pendingAltitudeLookup = null;
 let placeResults = [];
 let searchMode = 'text';
 let searchState = null;
@@ -456,6 +459,28 @@ function samePoint(aLat, aLon, bLat, bLon) {
     && Math.abs(aLat - bLat) < 1e-6 && Math.abs(aLon - bLon) < 1e-6;
 }
 
+function settingValue(id) {
+  const raw = (document.getElementById(id).value || '').trim().replace(',', '.');
+  if (raw === '') return '';
+  const value = Number(raw);
+  return Number.isFinite(value) ? String(value) : raw;
+}
+
+function settingsSignature() {
+  return [
+    'altInput',
+    'altitudeOffsetInput',
+    'randomRadiusInput',
+    'verticalAccuracyInput',
+    'motionTypeInput',
+    'motionConfidenceInput',
+  ].map(settingValue).join('|');
+}
+
+function settingsChanged() {
+  return activeSettingsSignature !== null && settingsSignature() !== activeSettingsSignature;
+}
+
 function updateLockUI() {
   const button = document.getElementById('saveBtn');
   const state = document.getElementById('lockState');
@@ -463,6 +488,12 @@ function updateLockUI() {
     button.textContent = '锁定到此位置';
     button.className = 'btn btn-primary primary-action';
     state.textContent = activeLat == null ? '未锁定位置' : '已选择新位置，尚未锁定';
+    return;
+  }
+  if (settingsChanged()) {
+    button.textContent = activeEnabled === false ? '更新并恢复锁定' : '更新锁定设置';
+    button.className = 'btn btn-primary primary-action';
+    state.textContent = '定位设置已修改，尚未保存';
     return;
   }
   if (activeEnabled === false) {
@@ -579,6 +610,7 @@ function queryActive() {
         document.getElementById('verticalAccuracyInput').value = d.verticalAccuracy ?? '';
         document.getElementById('motionTypeInput').value = d.motionActivityType ?? '';
         document.getElementById('motionConfidenceInput').value = d.motionActivityConfidence ?? '';
+        activeSettingsSignature = settingsSignature();
         lat = activeLat;
         lon = activeLon;
         selected = true;
@@ -588,6 +620,7 @@ function queryActive() {
       } else {
         activeLon = null; activeLat = null;
         activeEnabled = null;
+        activeSettingsSignature = null;
         updateLockUI();
         renderFavs();
       }
@@ -633,14 +666,31 @@ async function onAltAuto() {
   inp.placeholder = '自动查询';
   if (alt == null) { toast('海拔查询失败', 3000); return; }
   inp.value = alt;
+  updateLockUI();
   toast('地面海拔 ' + alt + ' m');
 }
 async function lookupAlt(la, lo) {
-  try {
-    const r = await fetch(GEO_API + '?format=json&lat=' + la + '&lon=' + lo + '&cs=none', { mode:'cors', cache:'no-store' });
-    const d = await r.json();
-    return (d && typeof d.alt === 'number') ? d.alt : null;
-  } catch (e) { return null; }
+  const key = Number(la).toFixed(6) + ',' + Number(lo).toFixed(6);
+  if (pendingAltitudeLookup && pendingAltitudeLookup.key === key) return pendingAltitudeLookup.promise;
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const timeout = setTimeout(() => { if (controller) controller.abort(); }, ALTITUDE_LOOKUP_TIMEOUT_MS);
+  const promise = (async () => {
+    try {
+      const r = await fetch(GEO_API + '?format=json&lat=' + la + '&lon=' + lo + '&cs=none', {
+        mode:'cors', cache:'no-store', signal:controller ? controller.signal : undefined
+      });
+      if (!r.ok) return null;
+      const d = await r.json();
+      return (d && typeof d.alt === 'number') ? d.alt : null;
+    } catch (e) {
+      return null;
+    } finally {
+      clearTimeout(timeout);
+      if (pendingAltitudeLookup && pendingAltitudeLookup.promise === promise) pendingAltitudeLookup = null;
+    }
+  })();
+  pendingAltitudeLookup = { key, promise };
+  return promise;
 }
 // 选点即自动查海拔, 自动回填到海拔框(每次选点都会刷新; 旧请求被新选点取代时丢弃)
 let altReqToken = 0;
@@ -654,6 +704,7 @@ async function autoQueryAlt() {
   inp.placeholder = '自动查询';
   if (alt == null) return;
   inp.value = alt;
+  updateLockUI();
 }
 // 计算本次要写入的海拔: 手填/已回填值优先, 空值时默认自动查询。
 async function resolveAlt() {
@@ -693,7 +744,7 @@ function formatRandomRadius(value) {
 async function save() {
   if (!selected) { toast('请先在地图上选择一个位置'); return; }
   const btn = document.getElementById('saveBtn');
-  if (samePoint(lat, lon, activeLat, activeLon) && activeEnabled !== null) {
+  if (samePoint(lat, lon, activeLat, activeLon) && activeEnabled !== null && !settingsChanged()) {
     btn.disabled = true;
     try {
       await setLockEnabled(activeEnabled === false);
@@ -727,15 +778,16 @@ async function save() {
       activeLon = lon; activeLat = lat;
       activeEnabled = true;
       setCachedAlt(lat, lon, (alt != null && !Number.isNaN(alt)) ? alt : null);
-      const altTxt = (alt != null && !Number.isNaN(alt)) ? '  海拔 ' + alt + 'm' : '';
+      const altTxt = (alt != null && !Number.isNaN(alt)) ? '  海拔 ' + alt + 'm' : '  海拔透传';
       const offsetTxt = formatOffset(altitudeOffset);
       const radiusTxt = formatRandomRadius(randomRadius);
       btn.textContent = '\\u2713 已锁定'; btn.className = 'btn btn-primary primary-action success';
       document.getElementById('status').textContent = '\\u2713 已写入: ' + formatCoords(lon, lat) + altTxt + offsetTxt + radiusTxt + ' \\u00b7 ' + new Date().toLocaleTimeString('zh-CN');
+      activeSettingsSignature = settingsSignature();
       setTimeout(() => setSheetExpanded(sheetExpanded), 0);
       updateLockUI();
       renderFavs();
-      toast('\\u2713 坐标已写入设备，下次定位生效');
+      toast(alt == null ? '坐标已写入；海拔查询失败，将保留原始海拔' : '\\u2713 坐标已写入设备，下次定位生效', alt == null ? 4000 : 2500);
       setTimeout(() => { updateLockUI(); btn.disabled=false; }, 2500);
     } else {
       throw new Error(d.error || '写入失败');
@@ -945,6 +997,14 @@ document.getElementById('searchInput').addEventListener('focus', showCachedSearc
 document.getElementById('searchInput').addEventListener('click', showCachedSearchResults);
 document.getElementById('urlInput').addEventListener('keydown', e => { if(e.key==='Enter') parseUrl(); });
 document.getElementById('favNameInput').addEventListener('keydown', e => { if(e.key==='Enter') confirmFav(); });
+[
+  'altInput',
+  'altitudeOffsetInput',
+  'randomRadiusInput',
+  'verticalAccuracyInput',
+  'motionTypeInput',
+  'motionConfidenceInput',
+].forEach(id => document.getElementById(id).addEventListener('input', updateLockUI));
 
 const bottomSheet = document.getElementById('bottomSheet');
 const sheetHandle = document.getElementById('sheetHandle');

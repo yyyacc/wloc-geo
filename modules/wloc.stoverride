@@ -20,7 +20,7 @@ http:
       binary-mode: true
       max-size: 0
       timeout: 30
-      argument: longitude=113.94114&latitude=22.544577&accuracy=25&altitude=15&randomRadius=0&logLevel=info
+      argument: longitude=113.94114&latitude=22.544577&accuracy=25&randomRadius=0&logLevel=info
     - match: ^https?:\/\/gs-loc(-cn)?\.apple\.com\/wloc-settings\/save
       name: WLOC.Settings
       type: request
@@ -29,8 +29,8 @@ http:
 
 script-providers:
   WLOC.Location:
-    url: https://raw.githubusercontent.com/yyyacc/wloc-geo/refs/heads/feat/upstream-wloc-updates/dist/wloc.js
+    url: https://raw.githubusercontent.com/yyyacc/wloc-geo/refs/heads/develop/dist/wloc.js
     interval: 86400
   WLOC.Settings:
-    url: https://raw.githubusercontent.com/yyyacc/wloc-geo/refs/heads/feat/upstream-wloc-updates/dist/wloc-settings.js
+    url: https://raw.githubusercontent.com/yyyacc/wloc-geo/refs/heads/develop/dist/wloc-settings.js
     interval: 86400
