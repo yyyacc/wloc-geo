@@ -256,7 +256,7 @@ button { -webkit-tap-highlight-color:transparent; }
 
     <section class="tool-panel" id="toolPanel-advanced">
       <div class="panel-title"><h3>高级定位字段</h3></div>
-      <div class="support-note">留空表示保留 Apple 原值，仅供兼容性测试。</div>
+      <div class="support-note">留空保留 Apple 原值。常用：运动状态类型 63（跑步/运动），置信度 467（高置信度）。</div>
       <section class="advanced-block" aria-label="高级定位字段">
         <label class="field" for="verticalAccuracyInput"><span>垂直精度（米）</span><input id="verticalAccuracyInput" type="number" step="1" placeholder="原值" /></label>
         <label class="field" for="motionTypeInput"><span>运动状态类型</span><input id="motionTypeInput" type="number" step="1" placeholder="原值" /></label>
